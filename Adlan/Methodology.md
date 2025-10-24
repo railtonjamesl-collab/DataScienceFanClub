@@ -22,19 +22,19 @@ Initially interested in removing companies with less than 3 years of data, we ap
 
 This motivated our decision to remove these companies entirely from the dataset for two reasons: firstly, to avoid the model accidentally using data from two years ago when we’re only interested in the previous year. Secondly, imputing the values would introduce a lot of assumptions and be computationally intensive given the limited scope of the project.
 
-3.	Removed companies that had less than 3 years of record
+2.	Removed companies that had less than 3 years of record
 
 This would help avoid us training the data on companies with limited information which could skew the data and reduce the accuracy of our predictions.
 
-4.	Introduce new status labels for 1,2 and 3 years to be specifically chosen depending on the number of previous years used
+3.	Introduce new status labels for 1,2 and 3 years to be specifically chosen depending on the number of previous years used
 
 This reflects that for a given company in the dataset, a company that had Failed was listed as Failed for all the previous years.
 
-5.	Introduce lag variables for three previous years
+4.	Introduce lag variables for three previous years
     
 This would allow us our models to train on 1,2 and 3 years.
 
-6.	Remove NA’s from the dataset
+5.	Remove NA’s from the dataset
 
 Our lag variables introduced NA’s given that a company e.g. at the start of the dataset cannot look back to previous years. 
 
