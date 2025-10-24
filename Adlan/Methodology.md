@@ -19,7 +19,8 @@ Hence, we decided to investigate two questions:
 
 
 This way, we can investigate not only the relation between company metrics and bankruptcy but the benefit of having additional years of information. For the second part, this is highly useful in gauging how far out we can tell if a company is going bankrupt or if it is something only really decidable closer to the event.
-Our training split 
+
+**Our training split** 
 
 Firstly, we decided to split our data into 1999-2011 (training set), 2012-2014 (validation set), 2015-2018 (test set). Splitting the companies chronologically helps us to avoid potential data leakage – training on future information to predict past information. Furthermore, by having the training set span both before and after the Great Financial Crisis, we avoid the model being overly influenced by 2008 which was a key outlier. 
 
