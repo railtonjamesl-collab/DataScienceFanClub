@@ -1,0 +1,73 @@
+---
+title: "Assignment 1 SVM"
+output: html_document
+date: "2025-10-24"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+df <- read.csv("C:\\Users\\railt\\DataScienceFanClub\\Data\\preprocessed_data.csv")
+df_log <- df
+```
+
+
+```{r}
+library(ggplot2)
+library(tidyr)
+library(caret)
+library(dplyr)
+```
+
+```{r}
+#do a signed log transform on all features to reduce skewness
+df_log[,7:78] <-(sign(df[,7:78]) * log(1 + abs(df[,7:78])))
+
+
+```
+
+```{r}
+set.seed(666)
+#generate unique company name
+companies <- df_log %>% distinct(company_name) 
+companies <- pull(companies)
+
+#divide company in test and train company crossectionally
+train_companies <- sample(companies, size =floor(0.7*length(companies)))
+test_companies <- setdiff(companies, train_companies)
+df_train_companies <- df_log %>% filter(company_name %in% train_companies)
+df_test_companies  <- df_log %>% filter(company_name %in% test_companies)
+
+#splt the train data into <2015 and test >=2015
+cutoff <- 2014
+
+df_train_companies_cut <- df_train_companies %>% filter(year < cutoff)
+df_test_companies_cut <- df_test_companies %>% filter(year >= cutoff)
+
+
+
+#remove(categorical, sample index, and company name)
+feature_to_scale = colnames(df)[-c(1,2,4,5,6)]
+
+#record set of means and stds for each feature in the train data
+scaler <- preProcess(df_train_companies_cut[, feature_to_scale], method = c('center','scale'))
+
+#scale both train and test data using the means and stds value from the train data
+train_scaled <- predict(scaler, df_train_companies_cut)
+test_scaled <- predict(scaler, df_test_companies_cut)
+
+```
+
+```{r}
+
+write.csv(df_log, "C:\\Users\\railt\\DataScienceFanClub\\Data\\df_logtransform.csv")
+
+write.csv(train_scaled, "C:\\Users\\railt\\DataScienceFanClub\\Data\\train_scaled.csv")
+
+write.csv(test_scaled, "C:\\Users\\railt\\DataScienceFanClub\\Data\\test_scaled.csv")
+
+```
+
+
