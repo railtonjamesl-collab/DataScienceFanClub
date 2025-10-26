@@ -1,0 +1,105 @@
+---
+title: '0'
+output: html_document
+date: "2025-10-25"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+Loading packages
+
+```{r packages, echo=FALSE}
+library(xgboost)
+library(dplyr)
+library(pROC)
+library(ggplot2)
+```
+
+
+```{r loading data}
+filepath <- "../Data/preprocessed_data.csv"
+df <- read.csv(filepath)
+head(df)
+```
+
+```{r features}
+features <- paste0("X", 1:18)
+lag_1yr_feats <- paste0(features, "_1yr")
+lag_2yr_feats <- paste0(features, "_2yr")
+lag_3yr_feats <- paste0(features, "_3yr")
+```
+
+
+```{r model}
+xgboost_model <- function(df, features, target) {
+  # Train-Validation split
+  train_df <- df %>% filter(year <= 2011)
+  val_df <- df %>% filter(year >= 2012 & year <= 2014)
+  test_df <- df %>% filter(year >= 2015)
+  
+  # One-hot-encoding target
+  train_target <- as.numeric(train_df[[target]] == "alive")
+  val_target <- as.numeric(val_df[[target]] == "alive")
+  
+  dtrain <- xgb.DMatrix(data = as.matrix(train_df[, features]), label = train_target)
+  dval <- xgb.DMatrix(data = as.matrix(val_df[, features]), label = val_target)
+  
+  # For class imbalances
+  n_pos <- sum(train_target == 1)
+  n_neg <- sum(train_target == 0)
+  scale_pos_weight <- n_neg / n_pos
+  
+  
+  params <- list(objective = "binary:logistic",
+                 eval_metric = "auc",
+                 scale_pos_weight = scale_pos_weight)
+  
+  model <- xgb.train(params = params,
+                     data = dtrain,
+                     nrounds = 400)
+  
+  preds <- predict(model, dval)
+  
+  auc <- auc(val_df[[target]], preds)
+  
+  # feature importance
+  importance_matrix <- xgb.importance(feature_names = colnames(dtrain), model = model)
+  
+  return (list(auc = auc, model = model, importance_matrix = importance_matrix))
+}
+```
+
+
+```{r results for status in 1yr}
+target <- "status_label_1yr"
+
+base_results <- xgboost_model(df, features, target)
+
+lag_1yr_results <- xgboost_model(df, lag_1yr_feats, target)
+lag_2yr_results <- xgboost_model(df, lag_2yr_feats, target)
+lag_3yr_results <- xgboost_model(df, lag_3yr_feats, target)
+```
+
+```{r AUC}
+# AUC
+base_auc <- base_results$auc
+lag_1yr_auc <- lag_1yr_results$auc
+lag_2yr_auc <- lag_2yr_results$auc
+lag_3yr_auc <- lag_3yr_results$auc
+
+print("==============AUC Scores=================")
+print(paste("Base features", base_auc))
+print(paste("1yr lag features", lag_1yr_auc))
+print(paste("2yrs lag features", lag_2yr_auc))
+print(paste("3yrs lag features", lag_3yr_auc))
+```
+
+```{r feature importance}
+importance_matrix <- base_results$importance_matrix
+xgb.plot.importance(importance_matrix = importance_matrix, measure = "Gain")
+```
+
