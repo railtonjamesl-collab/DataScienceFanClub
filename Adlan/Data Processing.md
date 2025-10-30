@@ -29,6 +29,10 @@ This would improve the quality of our predictions by removing companies that had
 
 Lag variables gives our models information from previous to train on as we investigate the impact of more information on our model's predictive power.
 
-5. Remove NAs from the dataset
+4. Remove NAs from the dataset
 
 By introducing lag variables, we introduce NAs as a company e.g. at the beginning of the dataset doesn't have previous years to refer to. Hence, we remove accordingly.
+
+**Exploratory Data Analysis**
+
+In plotting the distribution of our features, we noticed them being heavily skewed. To adjust for this, we applied the log function to help them approximate a normal distribution.
