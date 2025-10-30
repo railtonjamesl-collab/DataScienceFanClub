@@ -15,6 +15,10 @@ Originally, we were interested in credit loan data which became problematic for 
 
 Our chosen bankruptcy dataset allowed us to explore a similar question without these issues. Tackling the above issues is possible but would require a significant amount of time, computational effort and access to sensitive information which stretches beyond the scope of this specific project and the resources available.
 
+**Our models**
+
+Our chosen models include a Random Forest, Xgboo
+
 
 
 
