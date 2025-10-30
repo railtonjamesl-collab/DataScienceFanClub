@@ -18,4 +18,8 @@ Given the nature of a random forest, we have a unique way to approximate a cross
 
 We use two measures to gauge feature importance. Firstly, mean decrease accuracy measures how much our prediction accuracy decreases on average when we remove a particular feature. Our second measure looks at how important each feature is in terms of splitting the data at each node. 
 
+**Model parameters**
+
+Here, we went with the usual standard of each model seeing a subset of the features equal to the square root of the number of features. We also chose 500 trees as a balance between gaining depth in our prediction and minimizing computational power/time. 
+
 
