@@ -8,4 +8,4 @@ We decided on an ROC curve for 3 reasons:
 
 2. Visual aspect: an ROC curve is valuable in showing the trade off between the true positive and false positive rates at different points. Combined with the diagonal line representing a standard guess, this helps us more easily visualise the predictive performance of each iteration.
 
-3. Thresh
+3. Threshold-Agnostic: metrics like an F1-score require you to pre-determine the threshold, evaluating the model at a specific point. An ROC curve, alternatively, plots every possible threshold, allowing us to see how the performance of the model changes at different points
