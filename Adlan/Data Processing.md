@@ -1,4 +1,6 @@
-# Deciding on our dataset 
+# Data preparation
+
+**Sourcing our data**
 
 Originally, we were interested in credit loan data. From kaggle to machine learning papers, we identified two issues:
 
