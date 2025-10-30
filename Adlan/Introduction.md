@@ -17,7 +17,8 @@ Our chosen bankruptcy dataset allowed us to explore a similar question without t
 
 **Our models**
 
-Our chosen models include a Random Forest, Xgboo
+Our chosen models include a Random Forest, XGboost, logistic regression, K Nearest Neighbours andd [insert here]
+
 
 
 
