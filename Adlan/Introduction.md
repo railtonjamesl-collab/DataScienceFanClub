@@ -1,4 +1,8 @@
 # Data Science Toolbox Assessed Coursework 1 : Supervised Prediction
 
+
+**Our goal**
 This project looks at a dataset outlining company metrics over time and their bankruptcy status. We were interested in solving the binary classification problem:
-given a company's metrics, will it go bankrupt in 
+given a company's metrics in a certain year n, will it go bankrupt in year n. We were then interested in determining the importance of different features and exploring how the quality of our predictions would change as we introduced additional company metrics from years n-1, n-2 and n-3. 
+
+
