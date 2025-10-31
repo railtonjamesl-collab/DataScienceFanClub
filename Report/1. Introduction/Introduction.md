@@ -4,7 +4,8 @@
 **Structure of the project**
 
 1. Introduction
--Our goal
+
+   -Our goal
 
 2. Data Preparation 
 -Deciding on our dataset 
