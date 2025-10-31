@@ -9,7 +9,10 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r}
+#loading data
 df <- read.csv("C:\\Users\\railt\\DataScienceFanClub\\Data\\preprocessed_data.csv")
+#removing feature X16 because of 1 to 1 correlation
+df <- df[, !names(df) %in% c('X16', 'X16_1yr', 'X16_2yr', 'X16_3yr')]
 df_log <- df
 ```
 
@@ -22,8 +25,9 @@ library(dplyr)
 ```
 
 ```{r}
+
 #do a signed log transform on all features to reduce skewness
-df_log[,7:78] <-(sign(df[,7:78]) * log(1 + abs(df[,7:78])))
+df_log[,7:74] <-(sign(df[,7:74]) * log(1 + abs(df[,7:74])))
 
 
 ```
@@ -31,43 +35,52 @@ df_log[,7:78] <-(sign(df[,7:78]) * log(1 + abs(df[,7:78])))
 ```{r}
 set.seed(666)
 #generate unique company name
-companies <- df_log %>% distinct(company_name) 
+companies <- df %>% distinct(company_name) 
 companies <- pull(companies)
 
 #divide company in test and train company crossectionally
 train_companies <- sample(companies, size =floor(0.7*length(companies)))
 test_companies <- setdiff(companies, train_companies)
-df_train_companies <- df_log %>% filter(company_name %in% train_companies)
-df_test_companies  <- df_log %>% filter(company_name %in% test_companies)
-
+df_train_companies <- df %>% filter(company_name %in% train_companies)
+df_test_companies  <- df %>% filter(company_name %in% test_companies)
+df_train_companies_log <- df_log %>% filter(company_name %in% train_companies)
+df_test_companies_log  <- df_log %>% filter(company_name %in% test_companies)
 #splt the train data into <2015 and test >=2015
 cutoff <- 2014
 
-df_train_companies_cut <- df_train_companies %>% filter(year < cutoff)
-df_test_companies_cut <- df_test_companies %>% filter(year >= cutoff)
+df_train <- df_train_companies %>% filter(year < cutoff)
+df_test <- df_test_companies %>% filter(year >= cutoff)
 
+df_train_log <- df_train_companies_log %>% filter(year < cutoff)
+df_test_log <- df_test_companies_log %>% filter(year >= cutoff)
+
+```
+
+```{r}
 
 
 #remove(categorical, sample index, and company name)
 feature_to_scale = colnames(df)[-c(1,2,4,5,6)]
 
 #record set of means and stds for each feature in the train data
-scaler <- preProcess(df_train_companies_cut[, feature_to_scale], method = c('center','scale'))
+scaler <- preProcess(df_train_log[, feature_to_scale], method = c('center','scale'))
 
 #scale both train and test data using the means and stds value from the train data
-train_scaled <- predict(scaler, df_train_companies_cut)
-test_scaled <- predict(scaler, df_test_companies_cut)
+train_scaled <- predict(scaler, df_train_log)
+test_scaled <- predict(scaler, df_test_log)
 
 ```
 
 ```{r}
 
-write.csv(df_log, "C:\\Users\\railt\\DataScienceFanClub\\Data\\df_logtransform.csv")
+write.csv(df_train_log, "C:\\Users\\railt\\DataScienceFanClub\\Data\\df_train_log.csv")
+write.csv(df_test_log, "C:\\Users\\railt\\DataScienceFanClub\\Data\\df_test_log.csv")
 
-write.csv(train_scaled, "C:\\Users\\railt\\DataScienceFanClub\\Data\\train_scaled.csv")
+write.csv(df_train, "C:\\Users\\railt\\DataScienceFanClub\\Data\\df_train.csv")
+write.csv(df_test, "C:\\Users\\railt\\DataScienceFanClub\\Data\\df_test.csv")
 
-write.csv(test_scaled, "C:\\Users\\railt\\DataScienceFanClub\\Data\\test_scaled.csv")
+write.csv(train_scaled, "C:\\Users\\railt\\DataScienceFanClub\\Data\\df_train_log_scaled.csv")
+write.csv(test_scaled, "C:\\Users\\railt\\DataScienceFanClub\\Data\\df_test_log_scaled.csv")
 
 ```
-
 
