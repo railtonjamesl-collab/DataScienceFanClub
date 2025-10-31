@@ -39,7 +39,6 @@ xgboost_model <- function(df, features, target) {
   # Train-Validation split
   train_df <- df %>% filter(year <= 2011)
   val_df <- df %>% filter(year >= 2012 & year <= 2014)
-  test_df <- df %>% filter(year >= 2015)
   
   # One-hot-encoding target
   train_target <- as.numeric(train_df[[target]] == "alive")
@@ -60,7 +59,7 @@ xgboost_model <- function(df, features, target) {
   
   model <- xgb.train(params = params,
                      data = dtrain,
-                     nrounds = 400)
+                     nrounds = 100)
   
   preds <- predict(model, dval)
   

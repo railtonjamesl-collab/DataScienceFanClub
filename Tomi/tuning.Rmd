@@ -1,0 +1,96 @@
+---
+title: "XGBoost Optimised n_rounds"
+output: html_document
+date: "2025-10-31"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r echo=FALSE}
+library(xgboost)
+library(dplyr)
+library(pROC)
+library(ggplot2)
+library(caret)
+```
+
+```{r}
+file_path <- "../Data/Final_traindata/df_train_full.csv"
+df <- read.csv(file_path)
+View(df)
+```
+
+```{r}
+features <- paste0("X", 1:15)
+base_features <- c(feats, "X17", "X18")
+
+lag_1yr_feats <- c(base_features, paste0(base_features, "_1yr"))
+lag_2yr_feats <- c(lag_1yr_feats, paste0(base_features, "_2yr"))
+lag_3yr_feats <- c(lag_2yr_feats, paste0(base_features, "_3yr"))
+
+train <- df %>% filter(year <= 2011)
+val <- df %>% filter(year > 2011)
+```
+
+```{r}
+xgboost_model <- function(features){
+  train_label <- train$status_label_1yr
+  val_label <- val$status_label_1yr
+
+  train_label <- as.numeric(train_label == "alive")
+  val_label <- as.numeric(val_label == "alive")
+
+  dtrain <- xgb.DMatrix(data = as.matrix(train[, features]), label = train_label)
+  dval <- xgb.DMatrix(data = as.matrix(val[, features]), label = val_label)
+
+  n_pos <- sum(train_label == 1)
+  n_neg <- sum(train_label == 0)
+  scale_pos_weight <- n_neg / n_pos
+
+  params <- list(objective = "binary:logistic", eta=0.3, gamma=0, max_depth=6, min_child_weight=1, subsample=1, colsample_bytree=1, eval_metric = "auc", showsd = T, stratified = T)
+
+  # We find the optimal number of iterations
+  set.seed(123)
+
+  model <- xgb.train(params = params, data = dtrain, nrounds = 100, watchlist = list(val = dval), print_every_n = 10, early_stopping_rounds = 20, maximize = TRUE)
+  
+  preds <- predict(model, dval)
+  auc <- auc(val_label, preds)
+  
+  importance_matrix <- xgb.importance(feature_names = colnames(dtrain), model = model)
+  
+  #confusion_matrix <- confusionMatrix(preds, val_label)
+  
+  return(list(auc = auc, model = model, importance_matrix = importance_matrix))
+}
+```
+
+```{r}
+base_results <- xgboost_model(base_features)
+
+lag_1yr_results <- xgboost_model(lag_1yr_feats)
+lag_2yr_results <- xgboost_model(lag_2yr_feats)
+lag_3yr_results <- xgboost_model(lag_3yr_feats)
+```
+
+```{r AUC}
+# AUC
+base_auc <- base_results$auc
+lag_1yr_auc <- lag_1yr_results$auc
+lag_2yr_auc <- lag_2yr_results$auc
+lag_3yr_auc <- lag_3yr_results$auc
+
+print("==============AUC Scores=================")
+print(paste("Base features", base_auc))
+print(paste("1yr lag features", lag_1yr_auc))
+print(paste("2yrs lag features", lag_2yr_auc))
+print(paste("3yrs lag features", lag_3yr_auc))
+```
+
+```{r feature importance}
+importance_matrix <- base_results$importance_matrix
+xgb.plot.importance(importance_matrix = importance_matrix, measure = "Gain")
+```
+
