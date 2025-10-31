@@ -13,6 +13,8 @@ Our chosen bankruptcy dataset allowed us to explore a similar question without t
 
 One benefit of this data set is that it has no missing, imputed or synthetic data. The lack of missing data specifically is beneficial as we do not have to spend time imputing data which would involve e.g. justifying the use of the mean or median depending on the distribution of each variable. 
 
+We also originally considered using status labels for years 1, 2, and 3 but removed these given that they risked introducing data leakage, giving the model future information about a company's bankruptcy that wouldn't be available at time _t_.
+
 However, we still identified a few key steps:
 
 1. Removing companies that had entire missing years
@@ -35,4 +37,8 @@ By introducing lag variables, we introduce NAs as a company e.g. at the beginnin
 
 **Exploratory Data Analysis**
 
-In plotting the distribution of our features, we noticed them being heavily skewed. To adjust for this, we applied the log function to help them approximate a normal distribution.
+In plotting the distribution of our features, we noticed them being heavily skewed. To adjust for this, we standardised the features in the training set by subtracting the mean and dividing by the standard deviation.
+
+However, the test set was more complicated because using the mean of the training set doesn't take in to account inflation. However, even after adjusting for this we still see the same skew. Furthermore, the company's growth over time isn't take in to account.  
+
+
