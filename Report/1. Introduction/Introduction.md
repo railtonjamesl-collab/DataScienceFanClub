@@ -1,27 +1,6 @@
 # Data Science Toolbox Assessed Coursework 1 : Supervised Prediction
 
 
-**Structure of the project**
-
-1. Introduction
-   - Our goal
-
-2. Data Preparation
-   - Deciding on our dataset
-   - Pre-processing of our data
-   - Exploratory data analysis
-
-3. Methodology
-   - Determining which features to use in the test set
-
-4. Results and Discussion
-   - Result of each model being run on the test set
-   - Aggregating and interpreting our results
-
-5. Conclusion
-   - Key takeaways
-   - Further options for exploration
-
 **Our goal**
 
 This project looks at a finance dataset from Kaggle outlining company metrics over time and their bankruptcy status. We were interested in solving the binary classification problem: given a company's metrics in a certain year _n_, will it go bankrupt in year _n_. We were then interested in determining the importance of different features and exploring how the quality of our predictions would change as we introduced additional company metrics from years _n-1_, _n-2_ and _n-3_. 
