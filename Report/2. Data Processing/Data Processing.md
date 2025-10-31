@@ -39,6 +39,8 @@ By introducing lag variables, we introduce NAs as a company e.g. at the beginnin
 
 In plotting the distribution of our features, we noticed them being heavily skewed. To adjust for this, we standardised the features in the training set by subtracting the mean and dividing by the standard deviation.
 
-However, the test set was more complicated because using the mean of the training set doesn't take in to account inflation. However, even after adjusting for this we still see the same skew. Furthermore, the company's growth over time isn't take in to account.  
+However, the test set was more complicated because using the mean of the training set doesn't take in to account inflation. However, even after adjusting for this we still see the same skew. Furthermore, the company's growth over time isn't take in to account. Here, we identify a key point where expert knowledge would be greatly helpful in understanding how to take in to account such growth which stretches beyond our existing knowledge and the computational constraints of the project.
+
+If we had more time, we would explore these two growth factors (inflation and company growth) in greater detail to make our model more generalisable.
 
 
