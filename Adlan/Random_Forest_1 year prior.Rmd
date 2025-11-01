@@ -1,0 +1,204 @@
+---
+title: "Random Forest"
+author: "Adlan"
+date: "2025-10-26"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(tidyverse)
+library(randomForest)
+library(pROC)
+
+#-------------------------------------------
+# Function: Train RF on train + validation
+#-------------------------------------------
+train_rf_cumulative <- function(train_file, valid_file, lags_to_include, seed=123) {
+  
+  # Load data
+  train_data <- read.csv(train_file)
+  valid_data <- read.csv(valid_file)
+  
+  target_col <- "status_label_3yr"
+  all_features <- names(train_data)
+  
+  # Base year variables
+  base_vars <- all_features[str_detect(all_features, "^X[0-9]+$")]
+  predictor_cols <- base_vars
+  
+  # Add lag variables
+  if (length(lags_to_include) > 0) {
+    for (lag in lags_to_include) {
+      lag_pattern <- paste0("_", lag, "yr$")
+      lag_vars <- all_features[str_detect(all_features, lag_pattern)]
+      predictor_cols <- c(predictor_cols, lag_vars)
+    }
+  }
+  
+  message("Training model with ", length(predictor_cols), 
+          " predictors | Lags: ", paste(lags_to_include, collapse=", "))
+  
+  selected_cols <- c(target_col, predictor_cols)
+  train_data <- train_data %>% select(any_of(selected_cols))
+  valid_data <- valid_data %>% select(any_of(selected_cols))
+  
+  train_data[[target_col]] <- as.factor(train_data[[target_col]])
+  valid_data[[target_col]] <- as.factor(valid_data[[target_col]])
+  
+  train_data[[target_col]] <- droplevels(train_data[[target_col]])
+  valid_data[[target_col]] <- droplevels(valid_data[[target_col]])
+  
+  set.seed(seed)
+  rf_model <- randomForest(
+    formula = as.formula(paste(target_col, "~ .")),
+    data = train_data,
+    ntree = 500,
+    mtry = sqrt(ncol(train_data)-1),
+    importance = TRUE,
+    strata = train_data[[target_col]],
+    sampsize = rep(min(table(train_data[[target_col]])), 2)
+  )
+  
+  # Validation predictions
+  prob_valid <- predict(rf_model, valid_data, type="prob")[,2]
+  roc_obj <- roc(valid_data[[target_col]], prob_valid)
+  auc_value <- auc(roc_obj)
+  
+  return(list(
+    model=rf_model,
+    roc=roc_obj,
+    auc=auc_value,
+    predictors=predictor_cols
+  ))
+}
+
+#-------------------------------------------
+# Step 1: Train all candidates on VAL set
+#-------------------------------------------
+
+val_train <- "../data/Val_traindata/df_train_log_scaled_val.csv"
+val_valid <- "../data/Val_traindata/df_test_log_scaled_val.csv"
+
+rf_base <- train_rf_cumulative(val_train, val_valid, lags_to_include=c())
+rf_lag1 <- train_rf_cumulative(val_train, val_valid, lags_to_include=c(1))
+rf_lag2 <- train_rf_cumulative(val_train, val_valid, lags_to_include=c(1,2))
+rf_lag3 <- train_rf_cumulative(val_train, val_valid, lags_to_include=c(1,2,3))
+
+
+
+#-------------------------------------------
+# Step 2: Compare validation AUCs
+#-------------------------------------------
+auc_df <- data.frame(
+  Model = c("Base", "Base+Lag1", "Base+Lag2", "Base+Lag3"),
+  Lags = c("0", "1", "1,2", "1,2,3"),
+  AUC = c(rf_base$auc, rf_lag1$auc, rf_lag2$auc, rf_lag3$auc)
+)
+
+print(auc_df)
+
+best_index <- which.max(auc_df$AUC)
+best_model_name <- auc_df$Model[best_index]
+
+#-------------------------------------------
+# CONFUSION MATRIX FOR BEST VALIDATION MODEL
+#-------------------------------------------
+
+valid_df <- read.csv(val_valid)
+true_valid <- as.factor(valid_df$status_label_3yr)
+
+# Helper to get predicted classes
+get_cm <- function(model, data, true_labels) {
+  preds <- predict(model$model, data, type = "response")
+  table(Predicted = preds, Actual = true_labels)
+}
+
+# Select the correct model object
+best_model_obj <- switch(
+  best_model_name,
+  "Base" = rf_base,
+  "Base+Lag1" = rf_lag1,
+  "Base+Lag2" = rf_lag2,
+  "Base+Lag3" = rf_lag3
+)
+
+cat("\n✅ Confusion Matrix for BEST model (on VALIDATION set):\n")
+print(get_cm(best_model_obj, valid_df, true_valid))
+
+
+cat("\n✅ Best model based on validation AUC:", best_model_name, "\n")
+
+# Extract best lag combination
+best_lags <- switch(
+  best_model_name,
+  "Base" = c(),
+  "Base+Lag1" = c(1),
+  "Base+Lag2" = c(1,2),
+  "Base+Lag3" = c(1,2,3)
+)
+
+cat("✅ Selected lag features:", paste(best_lags, collapse=", "), "\n")
+
+#-------------------------------------------
+# Step 3: Plot all validation ROC curves
+#-------------------------------------------
+plot(rf_base$roc, col="#1b9e77", lwd=2, main="Validation ROC Curves")
+lines(rf_lag1$roc, col="#d95f02", lwd=2)
+lines(rf_lag2$roc, col="#7570b3", lwd=2)
+lines(rf_lag3$roc, col="#e7298a", lwd=2)
+abline(a=0, b=1, lty=2, col="gray")
+
+legend("bottomright",
+       legend=paste(c("Base", "Lag1", "Lag1+2", "Lag1+2+3"),
+                    "AUC=", round(c(rf_base$auc, rf_lag1$auc, rf_lag2$auc, rf_lag3$auc), 3)),
+       col=c("#1b9e77","#d95f02","#7570b3","#e7298a"),
+       lwd=2, bty="n")
+
+#-------------------------------------------
+# Step 4: Retrain winner on FULL training set
+#-------------------------------------------
+
+final_train <- "../data/Final_traindata/df_train_log_scaled_full.csv"
+final_test  <- "../data/Final_traindata/df_test_log_scaled.csv"
+
+rf_final <- train_rf_cumulative(
+  train_file = final_train,
+  valid_file = final_test,
+  lags_to_include = best_lags
+)
+
+cat("\n✅ FINAL MODEL AUC on FINAL TEST SET =", round(rf_final$auc, 3), "\n")
+
+
+
+#-------------------------------------------
+# Step 5: Plot FINAL ROC
+#-------------------------------------------
+plot(rf_final$roc, col="#1b9e77", lwd=3,
+     main=paste("Final Test ROC Curve (", best_model_name, ")", sep=""))
+
+abline(a=0, b=1, lty=2, col="gray")
+
+# Add AUC text to the plot
+text(
+  x = 0.6, y = 0.1,
+  labels = paste("AUC =", round(rf_final$auc, 3)),
+  cex = 1.2
+)
+
+```
+
+
+
+
+
+
+
+
+
+
