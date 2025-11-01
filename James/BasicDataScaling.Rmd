@@ -125,31 +125,55 @@ write.csv(test_scaled_val, "C:\\Users\\railt\\DataScienceFanClub\\Data\\Val_trai
 ```
 
 ```{r}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(ggrepel)
+
 johnny1 <- df %>% select(any_of(c("year")), 7:23)
+
 johnny <- johnny1 %>%
-group_by(year) %>%
-summarise(across(where(is.numeric), mean, na.rm = TRUE)) 
+  group_by(year) %>%
+  summarise(across(where(is.numeric), mean, na.rm = TRUE))
 
 df_long <- johnny %>%
   pivot_longer(cols = -year, names_to = "feature", values_to = "mean_value")
 
+# get the last year for each feature to place the labels
+df_labels <- df_long %>%
+  group_by(feature) %>%
+  filter(year == max(year))
+
 ggplot(df_long, aes(x = year, y = mean_value, color = feature)) +
-  geom_line() +
-  theme_minimal() +
+  geom_line(size = 1) +
+  geom_text_repel(
+    data = df_labels,
+    aes(label = feature),
+    hjust = 0,
+    nudge_x = 0.3,
+    size = 3,
+    show.legend = FALSE
+  ) +
+  theme_minimal(base_size = 13) +
   labs(
     title = "Yearly Mean per Feature",
     x = "Year",
     y = "Mean Value"
+  ) +
+  theme(
+    legend.position = "none",  # hide legend since we have labels
+    plot.title = element_text(face = "bold")
   )
-```
 
+```
+https://fred.stlouisfed.org/series/CPIAUCSL
 ```{r}
 library(dplyr)
 inflation <- data.frame(
   year = 1999:2023,
-  cpi  = c(166.6, 172.2, 177.1, 179.9, 184.0, 188.9, 195.3, 201.6, 207.3, 215.3,
-           214.5, 218.1, 224.9, 229.6, 232.9, 236.7, 237.0, 251.1, 255.7, 258.8,
-           262.2, 271.0, 292.655, 304.702, 305.3)  # last value illustrative
+  cpi  = c(166, 172.2, 177.7, 179.6, 183.1, 188.9, 193.7, 201.8, 207.2, 217.5,
+           214.8, 217.1, 224.8, 228.5, 232.4, 237.2, 237.6, 240.2, 244.2, 251,
+           255.2, 257.0, 270.7, 295.07, 304.1) 
 )
 
 base_year <- 2002

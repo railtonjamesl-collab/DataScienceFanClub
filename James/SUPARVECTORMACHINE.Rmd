@@ -1,0 +1,122 @@
+---
+title: "SVM test"
+output: html_document
+date: "2025-10-25"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+In this section 
+```{r}
+library(e1071)   
+library(pROC)    
+library(caret)   
+library(ROSE)
+library(dplyr)
+library(smotefamily)
+library(PRROC)
+library(xgboost)
+```
+
+```{r}
+df_train <- read.csv("C:\\Users\\railt\\DataScienceFanClub\\Data\\Val_traindata\\df_train_log_scaled_val.csv")
+df_test <- read.csv("C:\\Users\\railt\\DataScienceFanClub\\Data\\Val_traindata\\df_test_log_scaled_val.csv")
+
+df_train <- df_train[-c(1,2)]
+df_test <- df_test[-c(1,2)]
+
+feature_lag0 = c('X1','X2','X3','X4','X5','X6','X7','X8','X9','X10','X11','X12','X13','X14','X15','X17','X18')
+feature_lag1 = c(feature_lag0, 'X1_1yr','X2_1yr','X3_1yr','X4_1yr','X5_1yr','X6_1yr','X7_1yr','X8_1yr','X9_1yr','X10_1yr','X11_1yr','X12_1yr','X13_1yr','X14_1yr','X15_1yr','X17_1yr','X18_1yr')
+feature_lag2 = c(feature_lag1, 'X1_2yr','X2_2yr','X3_2yr','X4_2yr','X5_2yr','X6_2yr','X7_2yr','X8_2yr','X9_2yr','X10_2yr','X11_2yr','X12_2yr','X13_2yr','X14_2yr','X15_2yr','X17_2yr','X18_2yr')
+feature_lag3 = c(feature_lag2, 'X1_3yr','X2_3yr','X3_3yr','X4_3yr','X5_3yr','X6_3yr','X7_3yr','X8_3yr','X9_3yr','X10_3yr','X11_3yr','X12_3yr','X13_3yr','X14_3yr','X15_3yr','X17_3yr','X18_3yr')
+
+```
+
+```{r}
+x_train_present <- df_train[, feature_lag3]
+x_test_present <- df_test[, feature_lag3]
+
+y_train_present <- factor(df_train[,'status_label_1yr'])
+y_test_present <- factor(df_test[,'status_label_1yr'])
+```
+
+```{r}
+#smoting this data
+set.seed(777) 
+train_smote <- SMOTE(x_train_present,y_train_present)
+new_df <- train_smote$data
+colnames(new_df)[ncol(new_df)] <- 'status_label_1yr'
+x_train_sm <- new_df[, -ncol(new_df)]
+y_train_sm <- factor(new_df$status_label_1yr)
+```
+It takes approximately ~15-30 minutes to run each session of SVM with SMOTE upsampling. This is a conseuqnce of radial kernel SVM has approximately O(n^2) ~ O(n^3). Therefore for 3 values of c, and 3 values of possible gamma, if we were to run all possible combination of features i.e. no lag, included 1 lag , included 2 lag, included 3 lag, it would take about 36 sessions to complete the hyper parameter tuning. This amount to about 9 - 18 hours. This highlight a major downside with support vector machine method. In theory, the computational speed can be significantly reduce if linear kernel was chosen. However, linear kernel is a degenerative case of the radial kernel, and in most case produce a less accurage results (source). PCA can also possible reduce the computational time here but the algorithm scale linear with feature so it shouldn't affect the performance much.
+
+```
+svm_rbf <- svm(
+  x = x_train_present,
+  y = y_train_present,
+  kernel = 'radial',
+  cost=1,
+  gamma = 1/ncol(x_train_sm)
+)
+
+pred_oc <- predict(svm_rbf, x_test_present, decision.values = TRUE)
+pred <- factor(ifelse(pred_oc, "alive", "failed"), levels = levels(y_test_present))
+print(confusionMatrix(pred, y_test_present, positive = "alive"))
+
+```
+
+```{r
+pred_cls <- predict(svm_rbf, newdata = x_test_present)
+print(confusionMatrix(pred_cls, y_test_present))
+```
+
+```{r}
+cost_values  <- c(0.1, 1, 10, 100)
+gamma_values <- c(2/ncol(x_train_sm), 1/ncol(x_train_sm), 0.1, 0.01)
+
+results <- data.frame(cost = numeric(), gamma = numeric(),
+                      Accuracy = numeric(), AUC = numeric(),
+                      Sensitivity = numeric(), Specificity = numeric())
+
+for (C in cost_values) {
+  for (g in gamma_values) {
+
+    svm_rbf <- svm(
+      x = x_train_sm,
+      y = y_train_sm,
+      kernel = 'radial',
+      cost   = C,
+      gamma  = g,
+      probability = TRUE
+    )
+
+    pred_oc <- predict(svm_rbf, x_test_present, decision.values = TRUE, probability = TRUE)
+    pred    <- factor(pred_oc, levels = levels(y_test_present))
+
+    # confusion matrix metrics
+    cm <- confusionMatrix(pred, y_test_present, positive = "alive")
+
+    # AUC from probabilities (alive)
+    probs <- attr(pred_oc, "probabilities")[, "alive"]
+    roc_obj <- roc(response = y_test_present,
+                   predictor = probs,
+                   levels = c("failed", "alive"),
+                   direction = ">")
+    auc_val <- as.numeric(auc(roc_obj))
+    
+    print(auc_val)
+    results <- rbind(results, data.frame(
+      cost = C, gamma = g,
+      Accuracy = as.numeric(cm$overall["Accuracy"]),
+      AUC = auc_val,
+      Sensitivity = as.numeric(cm$byClass["Sensitivity"]),
+      Specificity = as.numeric(cm$byClass["Specificity"])
+    ))
+  }
+}
+
+```
+
+
