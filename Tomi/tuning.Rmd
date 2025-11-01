@@ -24,7 +24,7 @@ View(df)
 
 ```{r}
 features <- paste0("X", 1:15)
-base_features <- c(feats, "X17", "X18")
+base_features <- c(features, "X17", "X18")
 
 lag_1yr_feats <- c(base_features, paste0(base_features, "_1yr"))
 lag_2yr_feats <- c(lag_1yr_feats, paste0(base_features, "_2yr"))

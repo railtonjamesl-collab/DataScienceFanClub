@@ -1,0 +1,60 @@
+---
+title: "Rolling Window CV"
+output: html_document
+date: "2025-10-31"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+first_year <- 2002 #Change to 1999 if that's the start year of data
+last_year <- 2014
+val_years <- c((first_year+1):last_year)
+print(val_years)
+```
+
+```{r Rolling Window Algo}
+rolling_window_v1 <- function(data, features){
+  auc_scores <- data.frame()
+  aucs <- c()
+  
+  for (val_year in val_years) {
+    train_data <- data %>% filter(year < val_year)
+    val_data <- data %>% filter(year == val_year)
+    
+    # Separating features and label if needed
+    train_feats <- train_data[, features]
+    val_feats <- val_data[, features]
+    
+    train_label <- train$status_label_1yr
+    val_label <- val$status_label_1yr
+
+    train_label <- as.numeric(train_label == "alive")
+    val_label <- as.numeric(val_label == "alive")
+    
+    # Train the model
+    model <- model(data = train_data,...) #replace with how you train data
+    
+    # Prediction and auc scores
+    preds <- predict(model, val_data)
+    auc_score <- auc(val_target, preds)
+    
+    # As a vector
+    aucs <- c(aucs, auc_score)
+    
+    # Or as a data frame if preferred
+    auc_scores <- rbind(auc_scores, data.frame(
+      val_year = val_year,
+      auc = auc_score 
+    ))
+  }
+  
+  mean_auc <- mean(aucs)
+  se_auc <- sd(aucs) / sqrt(length(aucs)) #standard error of the auc scores
+  
+  return(list(mean_auc = mean_auc, se_auc = se_auc, fold_aucs = auc_scores)) #fold_aucs is optional
+}
+```
