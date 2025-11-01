@@ -39,20 +39,45 @@ companies <- df %>% distinct(company_name)
 companies <- pull(companies)
 
 #divide company in test and train company crossectionally
-train_companies <- sample(companies, size =floor(0.7*length(companies)))
+train_companies <- sample(companies, size =floor(0.8*length(companies)))
 test_companies <- setdiff(companies, train_companies)
+
 df_train_companies <- df %>% filter(company_name %in% train_companies)
 df_test_companies  <- df %>% filter(company_name %in% test_companies)
+
 df_train_companies_log <- df_log %>% filter(company_name %in% train_companies)
 df_test_companies_log  <- df_log %>% filter(company_name %in% test_companies)
 #splt the train data into <2015 and test >=2015
-cutoff <- 2014
 
-df_train <- df_train_companies %>% filter(year < cutoff)
+cutoff <- 2014
+val_cutoff <- 2012
+
+df_train_full <- df_train_companies %>% filter(year < cutoff)
 df_test <- df_test_companies %>% filter(year >= cutoff)
 
-df_train_log <- df_train_companies_log %>% filter(year < cutoff)
+#split companies into train and val
+companies_val <- df_train_full %>% distinct(company_name) 
+companies_val <- pull(companies_val)
+
+train_companies_val <- sample(companies_val, size =floor(0.75 *length(companies_val)))
+test_companies_val <- setdiff(companies_val, train_companies_val)
+757
+df_train_val <- df_train_full %>% filter(company_name %in% train_companies_val)
+df_test_val <- df_train_full %>% filter(company_name %in% test_companies_val)
+
+df_train_val <- df_train_val %>% filter(year < val_cutoff)
+df_test_val <- df_test_val %>% filter(year >= val_cutoff)
+
+#validation set for the log version
+df_train_log_full <- df_train_companies_log %>% filter(year < cutoff)
 df_test_log <- df_test_companies_log %>% filter(year >= cutoff)
+
+df_train_log_val <- df_train_log_full %>% filter(company_name %in% train_companies_val)
+df_test_log_val <- df_train_log_full %>% filter(company_name %in% test_companies_val)
+
+df_train_log_val <- df_train_log_val %>% filter(year < val_cutoff)
+df_test_log_val <- df_test_log_val %>% filter(year >= val_cutoff)
+
 
 ```
 
@@ -63,24 +88,96 @@ df_test_log <- df_test_companies_log %>% filter(year >= cutoff)
 feature_to_scale = colnames(df)[-c(1,2,4,5,6)]
 
 #record set of means and stds for each feature in the train data
-scaler <- preProcess(df_train_log[, feature_to_scale], method = c('center','scale'))
-
+scaler <- preProcess(df_train_log_full[, feature_to_scale], method = c('center','scale'))
+scaler_val <- preProcess(df_train_log_val)
 #scale both train and test data using the means and stds value from the train data
-train_scaled <- predict(scaler, df_train_log)
+train_scaled_full <- predict(scaler, df_train_log_full)
 test_scaled <- predict(scaler, df_test_log)
+
+train_scaled_val <- predict(scaler_val, df_train_log_val)
+test_scaled_val <- predict(scaler_val, df_test_log_val)
 
 ```
 
 ```{r}
 
-write.csv(df_train_log, "C:\\Users\\railt\\DataScienceFanClub\\Data\\df_train_log.csv")
-write.csv(df_test_log, "C:\\Users\\railt\\DataScienceFanClub\\Data\\df_test_log.csv")
+write.csv(df_train_log_full, "C:\\Users\\railt\\DataScienceFanClub\\Data\\Final_traindata\\df_train_log_full.csv")
+write.csv(df_test_log, "C:\\Users\\railt\\DataScienceFanClub\\Data\\Final_traindata\\df_test_log.csv")
 
-write.csv(df_train, "C:\\Users\\railt\\DataScienceFanClub\\Data\\df_train.csv")
-write.csv(df_test, "C:\\Users\\railt\\DataScienceFanClub\\Data\\df_test.csv")
+write.csv(df_train_full, "C:\\Users\\railt\\DataScienceFanClub\\Data\\Final_traindata\\df_train_full.csv")
+write.csv(df_test, "C:\\Users\\railt\\DataScienceFanClub\\Data\\Final_traindata\\df_test.csv")
 
-write.csv(train_scaled, "C:\\Users\\railt\\DataScienceFanClub\\Data\\df_train_log_scaled.csv")
-write.csv(test_scaled, "C:\\Users\\railt\\DataScienceFanClub\\Data\\df_test_log_scaled.csv")
+write.csv(train_scaled_full, "C:\\Users\\railt\\DataScienceFanClub\\Data\\Final_traindata\\df_train_log_scaled_full.csv")
+write.csv(test_scaled, "C:\\Users\\railt\\DataScienceFanClub\\Data\\Final_traindata\\df_test_log_scaled.csv")
 
 ```
+
+```{r}
+write.csv(df_train_log_val, "C:\\Users\\railt\\DataScienceFanClub\\Data\\Val_traindata\\df_train_log_val.csv")
+write.csv(df_test_log_val, "C:\\Users\\railt\\DataScienceFanClub\\Data\\Val_traindata\\df_test_log_val.csv")
+
+write.csv(df_train_val, "C:\\Users\\railt\\DataScienceFanClub\\Data\\Val_traindata\\df_train_val.csv")
+write.csv(df_test_val, "C:\\Users\\railt\\DataScienceFanClub\\Data\\Val_traindata\\df_test_val.csv")
+
+write.csv(train_scaled_val, "C:\\Users\\railt\\DataScienceFanClub\\Data\\Val_traindata\\df_train_log_scaled_val.csv")
+write.csv(test_scaled_val, "C:\\Users\\railt\\DataScienceFanClub\\Data\\Val_traindata\\df_test_log_scaled_val.csv")
+
+```
+
+```{r}
+johnny1 <- df %>% select(any_of(c("year")), 7:23)
+johnny <- johnny1 %>%
+group_by(year) %>%
+summarise(across(where(is.numeric), mean, na.rm = TRUE)) 
+
+df_long <- johnny %>%
+  pivot_longer(cols = -year, names_to = "feature", values_to = "mean_value")
+
+ggplot(df_long, aes(x = year, y = mean_value, color = feature)) +
+  geom_line() +
+  theme_minimal() +
+  labs(
+    title = "Yearly Mean per Feature",
+    x = "Year",
+    y = "Mean Value"
+  )
+```
+
+```{r}
+library(dplyr)
+inflation <- data.frame(
+  year = 1999:2023,
+  cpi  = c(166.6, 172.2, 177.1, 179.9, 184.0, 188.9, 195.3, 201.6, 207.3, 215.3,
+           214.5, 218.1, 224.9, 229.6, 232.9, 236.7, 237.0, 251.1, 255.7, 258.8,
+           262.2, 271.0, 292.655, 304.702, 305.3)  # last value illustrative
+)
+
+base_year <- 2002
+cpi_base <- inflation$cpi[inflation$year == base_year]
+
+df_adj <- df %>%
+  left_join(inflation, by = "year") %>%
+  mutate(across(7:23, ~ .x * (cpi_base / cpi)))
+
+
+```
+
+```{r}
+df_mean_adj <- df_adj %>%
+  group_by(year) %>%
+  summarise(across(6:22, mean, na.rm = TRUE)) %>%
+  pivot_longer(cols = -year, names_to = "feature", values_to = "mean_value")
+
+ggplot(df_mean_adj, aes(x = year, y = mean_value, color = feature)) +
+  geom_line() +
+  theme_minimal() +
+  labs(
+    title = "Inflation-Adjusted (Real 2002) Mean per Feature",
+    x = "Year",
+    y = "Mean Value (2002 USD)"
+  )
+
+```
+
+
 
