@@ -1,5 +1,5 @@
 ---
-title: "Logistic Regression Clean"
+title: "Logistic Regression Report"
 output: html_document
 date: "2025-11-01"
 ---
@@ -66,7 +66,7 @@ summary(model_base)
 
 There is high collinearity between variables. We will explore this more after our initial testing. We weight variables to counter act the imbalance class size in the dataset. We use the method outlined in King (2001) to determine our weightings.
 
-```{r weighted}
+```{r weighted baseline}
 ratios <- c(200/200, (1000-200)/(18863-200))
 weightings <- c((200/18863)/ratios[1], (1-(200/18863))/ratios[2])
 
@@ -75,7 +75,7 @@ model_base_w <- glm(formula_base, data = train_scaled, family = binomial(), weig
 summary(model_base_w)
 ```
 
-```{r ta}
+```{r loop for models}
 formulas <- list(
   base = as.formula(paste("status_label_1yr ~", paste(features, collapse = " + "))),
   base_lag1 = as.formula(paste("status_label_1yr ~", paste(c(features, lag_1yr_feats), collapse = " + "))),
@@ -98,7 +98,7 @@ for (i in names(models)) {
 
 Here we see that for the unweighted models... FINISH LATER ON SORRY GUYS!
 
-```{r analysis}
+```{r analysis on validation set}
 model_names <- setdiff(names(models), c("base_w", "base_lag1_w", "base_lag1_2_w", "all_w"))
 glm_probs <- list()
 for (i in model_names) {
@@ -165,9 +165,31 @@ print(best_model_name)
 print(best_model_name_w)
 ```
 
-```{r accuracy}
-thresh <- coords(roc_weighted[[1]], "best", ret = "threshold")
-glm.pred <- ifelse(glm_probs[[2]] > thresh$threshold, 1, 0)
+```{r accuracy for best model}
+thresh <- coords(roc_unweighted[[1]], "best", ret = "threshold")
+glm.pred <- ifelse(glm_probs[[1]] > thresh$threshold, 1, 0)
+actual <- val_scaled$status_label_1yr
+
+cm <- table(Predicted = glm.pred, Actual = actual)
+cm
+
+TP <- cm[2, 2]  
+TN <- cm[1, 1]  
+FP <- cm[2, 1]  
+FN <- cm[1, 2]
+
+accuracy  <- (TP + TN) / sum(cm)
+precision <- TP / (TP + FP)
+recall    <- TP / (TP + FN)
+f1_score  <- 2 * precision * recall / (precision + recall)
+
+cat("Accuracy :", round(accuracy, 3), "\n")
+cat("Precision:", round(precision, 3), "\n")
+cat("Recall   :", round(recall, 3), "\n")
+cat("F1 Score :", round(f1_score, 3), "\n")
+
+thresh_w <- coords(roc_weighted[[1]], "best", ret = "threshold")
+glm.pred <- ifelse(glm_probs[[2]] > thresh_w$threshold, 1, 0)
 actual <- val_scaled$status_label_1yr
 
 cm <- table(Predicted = glm.pred, Actual = actual)
@@ -198,9 +220,9 @@ glm_probs_basefinal_w = predict(model_base_final_w, newdata = final_test_scaled,
 roc_objbfinal <- roc(final_test_scaled$status_label_1yr, glm_probs_basefinal)
 roc_objbfinal_w <- roc(final_test_scaled$status_label_1yr, glm_probs_basefinal_w)
 
-final_thresh <- coords(roc_objbfinal_w, "best", ret = "threshold")
+final_thresh <- coords(roc_objbfinal, "best", ret = "threshold")
 
-glm.pred <- ifelse(glm_probs_basefinal_w > final_thresh$threshold, 1, 0)
+glm.pred <- ifelse(glm_probs_basefinal > final_thresh$threshold, 1, 0)
 actual <- final_test_scaled$status_label_1yr
 
 cm <- table(Predicted = glm.pred, Actual = actual)
@@ -216,12 +238,39 @@ precision <- TP / (TP + FP)
 recall    <- TP / (TP + FN)
 f1_score  <- 2 * precision * recall / (precision + recall)
 
-cat("Accuracy:", round(accuracy, 3), "\n")
-cat("Precision:", round(precision, 3), "\n")
-cat("Recall:", round(recall, 3), "\n")
-cat("F1 Score:", round(f1_score, 3), "\n")
+cat("Accuracy (Unweighted):", round(accuracy, 3), "\n")
+cat("Precision (Unweighted):", round(precision, 3), "\n")
+cat("Recall (Unweighted):", round(recall, 3), "\n")
+cat("F1 Score (Unweighted):", round(f1_score, 3), "\n")
+
+final_thresh_w <- coords(roc_objbfinal_w, "best", ret = "threshold")
+
+glm.pred <- ifelse(glm_probs_basefinal_w > final_thresh_w$threshold, 1, 0)
+actual <- final_test_scaled$status_label_1yr
+
+cm <- table(Predicted = glm.pred, Actual = actual)
+cm
+
+TP <- cm[2, 2]  
+TN <- cm[1, 1]  
+FP <- cm[2, 1]  
+FN <- cm[1, 2]
+
+accuracy  <- (TP + TN) / sum(cm)
+precision <- TP / (TP + FP)
+recall    <- TP / (TP + FN)
+f1_score  <- 2 * precision * recall / (precision + recall)
+
+cat("Accuracy (Weighted):", round(accuracy, 3), "\n")
+cat("Precision (Weighted):", round(precision, 3), "\n")
+cat("Recall (Weighted):", round(recall, 3), "\n")
+cat("F1 Score (Weighted):", round(f1_score, 3), "\n")
 cat("Unweighted Base Model AUC:", roc_objbfinal$auc, "\n")
 cat("Weighted Base Model AUC:", roc_objbfinal_w$auc, "\n")
+
+plot(roc_unweighted[[1]], col = 1, lwd = 2, main = "Final ROC Curves by Model")
+lines(roc_weighted[[1]], col = 2, lwd = 2)
+legend("bottomright", legend = paste(c("Base", "Weighted Base"), "AUC =", round(c(roc_objbfinal$auc, roc_objbfinal_w$auc), 3)), col = 1:2, lwd = 2, bty = "n")
 
 summary(models[[2]])
 ```
@@ -238,7 +287,7 @@ lag_3yr_newfeats <- paste0(new_features, "_3yr")
 print(new_features)
 ```
 
-```{r alhum}
+```{r formulas for new features}
 formulas_new <- list(
   base_new = as.formula(paste("status_label_1yr ~", paste(new_features, collapse = " + "))),
   base_lag1_new = as.formula(paste("status_label_1yr ~", paste(c(new_features, lag_1yr_newfeats), collapse = " + "))),
@@ -258,7 +307,7 @@ for (i in names(models_new)) {
   cat("AIC:", AIC(models_new[[i]]), "\n")
 }
 ```
-```{r recoop}
+```{r roc curves on new features}
 model_names_new <- setdiff(names(models_new), c("base_new_w", "base_lag1_new_w", "base_lag1_2_new_w", "all_new_w"))
 glm_probs_new <- list()
 for (i in model_names_new) {
@@ -325,21 +374,18 @@ best_model_name_w_new <- auc_df_w_new$Model[best_index_new]
 print(best_model_name_new)
 print(best_model_name_w_new)
 ```
-```{r doneko}
+```{r final comparison on new features test set}
 model_base_final_new <- glm(formulas_new[[1]], data = final_train_scaled, family = binomial())
 model_base_final_new_w <- glm(formulas_new[[1]], data = final_train_scaled, family = binomial(), weights = ifelse(final_train_scaled$status_label_1yr == 1, floor(weightings[2]), 0.01))
 
 glm_probs_basefinal_new = predict(model_base_final_new, newdata = final_test_scaled, type ="response")
 glm_probs_basefinal_new_w = predict(model_base_final_new_w, newdata = final_test_scaled, type ="response")
-roc_objbfinal_new <- roc(final_test_scaled$status_label_1yr, glm.probs_basefinal_new)
-roc_objbfinal_new_w <- roc(final_test_scaled$status_label_1yr, glm.probs_basefinal_new_w)
+roc_objbfinal_new <- roc(final_test_scaled$status_label_1yr, glm_probs_basefinal_new)
+roc_objbfinal_new_w <- roc(final_test_scaled$status_label_1yr, glm_probs_basefinal_new_w)
 
-cat("Unweighted Base Model AUC:", roc_objbfinal_new$auc, "\n")
-cat("Weighted Base Model AUC:", roc_objbfinal_new_w$auc, "\n")
+final_thresh_new <- coords(roc_objbfinal_new, "best", ret = "threshold")
 
-final_thresh_new <- coords(roc_objbfinal_new_w, "best", ret = "threshold")
-
-glm.pred <- ifelse(glm_probs_basefinal_new_w > final_thresh_new$threshold, 1, 0)
+glm.pred <- ifelse(glm_probs_basefinal_new > final_thresh_new$threshold, 1, 0)
 actual <- final_test_scaled$status_label_1yr
 
 cm <- table(Predicted = glm.pred, Actual = actual)
@@ -355,10 +401,41 @@ precision <- TP / (TP + FP)
 recall    <- TP / (TP + FN)
 f1_score  <- 2 * precision * recall / (precision + recall)
 
-cat("Accuracy:", round(accuracy, 3), "\n")
-cat("Precision:", round(precision, 3), "\n")
-cat("Recall:", round(recall, 3), "\n")
-cat("F1 Score:", round(f1_score, 3), "\n")
+cat("Accuracy (Unweighted):", round(accuracy, 3), "\n")
+cat("Precision (Unweighted):", round(precision, 3), "\n")
+cat("Recall (Unweighted):", round(recall, 3), "\n")
+cat("F1 Score (Unweighted):", round(f1_score, 3), "\n")
+
+final_thresh_w_new <- coords(roc_objbfinal_new_w, "best", ret = "threshold")
+
+glm.pred <- ifelse(glm_probs_basefinal_new_w > final_thresh_w_new$threshold, 1, 0)
+actual <- final_test_scaled$status_label_1yr
+
+cm <- table(Predicted = glm.pred, Actual = actual)
+cm
+
+TP <- cm[2, 2]  
+TN <- cm[1, 1]  
+FP <- cm[2, 1]  
+FN <- cm[1, 2]
+
+accuracy  <- (TP + TN) / sum(cm)
+precision <- TP / (TP + FP)
+recall    <- TP / (TP + FN)
+f1_score  <- 2 * precision * recall / (precision + recall)
+
+cat("Accuracy (Weighted):", round(accuracy, 3), "\n")
+cat("Precision (Weighted):", round(precision, 3), "\n")
+cat("Recall (Weighted):", round(recall, 3), "\n")
+cat("F1 Score (Weighted):", round(f1_score, 3), "\n")
+
+plot(roc_unweighted_new[[1]], col = 1, lwd = 2, main = "Final ROC Curves by Model")
+lines(roc_weighted_new[[1]], col = 2, lwd = 2)
+legend("bottomright", legend = paste(c("Base", "Weighted Base"), "AUC =", round(c(roc_objbfinal_new$auc, roc_objbfinal_new_w$auc), 3)), col = 1:2, lwd = 2, bty = "n")
+
+cat("Unweighted Base Model AUC:", roc_objbfinal_new$auc, "\n")
+cat("Weighted Base Model AUC:", roc_objbfinal_new_w$auc, "\n")
+
 summary(models_new[[2]])
 ```
 
