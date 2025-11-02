@@ -1,2 +1,0 @@
-# DataScienceFanClub
-assignemnt 1

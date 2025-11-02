@@ -1,0 +1,367 @@
+---
+title: "Logistic Regression Clean"
+output: html_document
+date: "2025-11-01"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r required libraries}
+pkgs <- c("data.table", "pROC", "car")
+
+for(p in pkgs){
+    if (!require(p,character.only=TRUE)) install.packages(p)
+}
+
+library(data.table)
+library(pROC)
+library(car)
+```
+
+```{r read transformed data}
+# Validation run
+train_scaled <- fread("df_train_log_scaled_val.csv")
+val_scaled <- fread("df_test_log_scaled_val.csv")
+
+# Final run
+final_train_scaled <- fread("df_train_log_scaled_full.csv")
+final_test_scaled <- fread ("df_test_log_scaled.csv")
+```
+
+We will now convert the status year columns into numerical targets, a form of binary encoding, with 0 for "alive" and 1 for "failed".
+
+```{r binary encoding}
+cols <- c("status_label_1yr", "status_label_2yr", "status_label_3yr")
+
+for (col in cols) {
+  train_scaled[[col]] <- ifelse(train_scaled[[col]] == "failed", 1, 0)
+  val_scaled[[col]]  <- ifelse(val_scaled[[col]] == "failed", 1, 0)
+  final_train_scaled[[col]] <- ifelse(final_train_scaled[[col]] == "failed", 1, 0)
+  final_test_scaled[[col]] <- ifelse(final_test_scaled[[col]] == "failed", 1, 0)
+}
+```
+
+As explained in the group part of the report, we have introduced lag variables so it is important that we categorise them for easier use in the future.
+
+```{r feature categorisation}
+features <- paste0("X", 1:18)
+features <- features[features !=  "X16"]
+lag_1yr_feats <- paste0(features, "_1yr")
+lag_2yr_feats <- paste0(features, "_2yr")
+lag_3yr_feats <- paste0(features, "_3yr")
+
+print(features)
+```
+
+We will now plot our simple logistic regression model, only considering base features and with respect to status_label_1yr.
+
+```{r baseline test}
+formula_base <- as.formula(paste("status_label_1yr ~", paste(features, collapse = " + ")))
+model_base <- glm(formula_base, data = train_scaled, family = binomial())
+vif(model_base)
+summary(model_base)
+```
+
+There is high collinearity between variables. We will explore this more after our initial testing. We weight variables to counter act the imbalance class size in the dataset. We use the method outlined in King (2001) to determine our weightings.
+
+```{r weighted}
+ratios <- c(200/200, (1000-200)/(18863-200))
+weightings <- c((200/18863)/ratios[1], (1-(200/18863))/ratios[2])
+
+weight <- ifelse(train_scaled$status_label_1yr == 1, floor(weightings[2]), 0.01)
+model_base_w <- glm(formula_base, data = train_scaled, family = binomial(), weights = weight)
+summary(model_base_w)
+```
+
+```{r ta}
+formulas <- list(
+  base = as.formula(paste("status_label_1yr ~", paste(features, collapse = " + "))),
+  base_lag1 = as.formula(paste("status_label_1yr ~", paste(c(features, lag_1yr_feats), collapse = " + "))),
+  base_lag1_2 = as.formula(paste("status_label_1yr ~", paste(c(features, lag_1yr_feats, lag_2yr_feats), collapse = " + "))),
+  all = as.formula(paste("status_label_1yr ~", paste(c(features, lag_1yr_feats, lag_2yr_feats, lag_3yr_feats), collapse = " + ")))
+)
+
+models <- list()
+for (i in names(formulas)) {
+  f <- formulas[[i]]
+  models[[i]] <- glm(f, data = train_scaled, family = binomial())
+  models[[paste0(i, "_w")]] <- glm(f, data = train_scaled, family = binomial(), weights = weight)
+}
+
+for (i in names(models)) {
+  cat("\nModel:", i, "\n")
+  cat("AIC:", AIC(models[[i]]), "\n")
+}
+```
+
+Here we see that for the unweighted models... FINISH LATER ON SORRY GUYS!
+
+```{r analysis}
+model_names <- setdiff(names(models), c("base_w", "base_lag1_w", "base_lag1_2_w", "all_w"))
+glm_probs <- list()
+for (i in model_names) {
+  mod <- models[[i]]
+  glm_probs[[i]] <- predict(mod, newdata = val_scaled, type = "response")
+  glm_probs[[paste0(i, "_w")]] <- predict(models[[paste0(i, "_w")]], newdata = val_scaled, type = "response")
+}
+
+roc_list <- list()
+auc_values <- numeric()
+
+for (i in names(glm_probs)) {
+  roc_list[[i]] <- roc(val_scaled$status_label_1yr, glm_probs[[i]])
+  auc_values[i] <- auc(roc_list[[i]])
+}
+
+# view AUC results
+print(round(auc_values, 3))
+
+roc_unweighted <- roc_list[!grepl("_w$", names(roc_list))]
+roc_weighted   <- roc_list[grepl("_w$", names(roc_list))]
+auc_unweighted <- auc_values[!grepl("_w$", names(auc_values))]
+auc_weighted   <- auc_values[grepl("_w$", names(auc_values))]
+
+# unweighted roc plot
+plot(roc_unweighted[[1]], col = 1, lwd = 2, main = "Unweighted ROC Curves by Model")
+for (j in 2:length(roc_unweighted)) {
+  lines(roc_unweighted[[j]], col = j, lwd = 2)
+}
+
+legend("bottomright",
+       legend = paste(names(roc_unweighted), "AUC =", round(auc_unweighted, 3)),
+       col = 1:length(roc_unweighted), lwd = 2, bty = "n")
+
+# weighted roc plot
+plot(roc_weighted[[1]], col = 1, lwd = 2, main = "Weighted ROC Curves by Model")
+for (j in 2:length(roc_weighted)) {
+  lines(roc_weighted[[j]], col = j, lwd = 2)
+}
+
+legend("bottomright",
+       legend = paste(names(roc_weighted), "AUC =", round(auc_weighted, 3)),
+       col = 1:length(roc_weighted), lwd = 2, bty = "n")
+
+
+auc_df <- data.frame(
+  Model = c("Base", "Base + Lag1", "Base + Lag2", "Base + Lag3"),
+  AUC = c(auc_values["base"], auc_values["base_lag1"], auc_values["base_lag1_2"], auc_values["all"])
+)
+
+auc_df_w <- data.frame(
+  Model = c("Weighted Base", "Weighted Base + Lag1", "Weighted Base + Lag2", "Weighted Base + Lag3"),
+  AUC = c(auc_values["base_w"], auc_values["base_lag1_w"], auc_values["base_lag1_2_w"], auc_values["all_w"])
+)
+
+print(auc_df)
+print(auc_df_w)
+
+best_index <- which.max(auc_df$AUC)
+best_index_w <- which.max(auc_df_w$AUC)
+best_model_name <- auc_df$Model[best_index]
+best_model_name_w <- auc_df_w$Model[best_index]
+print(best_model_name)
+print(best_model_name_w)
+```
+
+```{r accuracy}
+thresh <- coords(roc_weighted[[1]], "best", ret = "threshold")
+glm.pred <- ifelse(glm_probs[[2]] > thresh$threshold, 1, 0)
+actual <- val_scaled$status_label_1yr
+
+cm <- table(Predicted = glm.pred, Actual = actual)
+cm
+
+TP <- cm[2, 2]  
+TN <- cm[1, 1]  
+FP <- cm[2, 1]  
+FN <- cm[1, 2]
+
+accuracy  <- (TP + TN) / sum(cm)
+precision <- TP / (TP + FP)
+recall    <- TP / (TP + FN)
+f1_score  <- 2 * precision * recall / (precision + recall)
+
+cat("Accuracy :", round(accuracy, 3), "\n")
+cat("Precision:", round(precision, 3), "\n")
+cat("Recall   :", round(recall, 3), "\n")
+cat("F1 Score :", round(f1_score, 3), "\n")
+```
+
+```{r final test}
+model_base_final <- glm(formulas[[1]], data = final_train_scaled, family = binomial())
+model_base_final_w <- glm(formulas[[1]], data = final_train_scaled, family = binomial(), weights = ifelse(final_train_scaled$status_label_1yr == 1, floor(weightings[2]), 0.01))
+
+glm_probs_basefinal = predict(model_base_final, newdata = final_test_scaled, type ="response")
+glm_probs_basefinal_w = predict(model_base_final_w, newdata = final_test_scaled, type ="response")
+roc_objbfinal <- roc(final_test_scaled$status_label_1yr, glm_probs_basefinal)
+roc_objbfinal_w <- roc(final_test_scaled$status_label_1yr, glm_probs_basefinal_w)
+
+final_thresh <- coords(roc_objbfinal_w, "best", ret = "threshold")
+
+glm.pred <- ifelse(glm_probs_basefinal_w > final_thresh$threshold, 1, 0)
+actual <- final_test_scaled$status_label_1yr
+
+cm <- table(Predicted = glm.pred, Actual = actual)
+cm
+
+TP <- cm[2, 2]  
+TN <- cm[1, 1]  
+FP <- cm[2, 1]  
+FN <- cm[1, 2]
+
+accuracy  <- (TP + TN) / sum(cm)
+precision <- TP / (TP + FP)
+recall    <- TP / (TP + FN)
+f1_score  <- 2 * precision * recall / (precision + recall)
+
+cat("Accuracy:", round(accuracy, 3), "\n")
+cat("Precision:", round(precision, 3), "\n")
+cat("Recall:", round(recall, 3), "\n")
+cat("F1 Score:", round(f1_score, 3), "\n")
+cat("Unweighted Base Model AUC:", roc_objbfinal$auc, "\n")
+cat("Weighted Base Model AUC:", roc_objbfinal_w$auc, "\n")
+
+summary(models[[2]])
+```
+We see that the the weighted base model has the highest AUC. We then run a summary of said model to see which variables are the most significant. We come to the conclusion that X1, X7, X8 and X17 are significant in whether a company will go bankrupt or not.
+
+We now extend our findings by removing all highly correlated variables. We choose said variables by the correlation analysis done in the EDA section of the report.
+
+```{r removal variables}
+new_features <- features[-c(2,4,9,10)]
+lag_1yr_newfeats <- paste0(new_features, "_1yr")
+lag_2yr_newfeats <- paste0(new_features, "_2yr")
+lag_3yr_newfeats <- paste0(new_features, "_3yr")
+
+print(new_features)
+```
+
+```{r alhum}
+formulas_new <- list(
+  base_new = as.formula(paste("status_label_1yr ~", paste(new_features, collapse = " + "))),
+  base_lag1_new = as.formula(paste("status_label_1yr ~", paste(c(new_features, lag_1yr_newfeats), collapse = " + "))),
+  base_lag1_2_new = as.formula(paste("status_label_1yr ~", paste(c(new_features, lag_1yr_newfeats, lag_2yr_newfeats), collapse = " + "))),
+  all_new = as.formula(paste("status_label_1yr ~", paste(c(new_features, lag_1yr_newfeats, lag_2yr_newfeats, lag_3yr_newfeats), collapse = " + ")))
+)
+
+models_new <- list()
+for (i in names(formulas_new)) {
+  f <- formulas_new[[i]]
+  models_new[[i]] <- glm(f, data = train_scaled, family = binomial())
+  models_new[[paste0(i, "_w")]] <- glm(f, data = train_scaled, family = binomial(), weights = weight)
+}
+
+for (i in names(models_new)) {
+  cat("\nModel:", i, "\n")
+  cat("AIC:", AIC(models_new[[i]]), "\n")
+}
+```
+```{r recoop}
+model_names_new <- setdiff(names(models_new), c("base_new_w", "base_lag1_new_w", "base_lag1_2_new_w", "all_new_w"))
+glm_probs_new <- list()
+for (i in model_names_new) {
+  mod <- models_new[[i]]
+  glm_probs_new[[i]] <- predict(mod, newdata = val_scaled, type = "response")
+  glm_probs_new[[paste0(i, "_w")]] <- predict(models_new[[paste0(i, "_w")]], newdata = val_scaled, type = "response")
+}
+
+roc_list_new <- list()
+auc_values_new <- numeric()
+
+# loop through all predicted probability vectors
+for (i in names(glm_probs_new)) {
+  roc_list_new[[i]] <- roc(val_scaled$status_label_1yr, glm_probs_new[[i]])
+  auc_values_new[i] <- auc(roc_list_new[[i]])
+}
+
+# view AUC results
+print(round(auc_values_new, 3))
+
+roc_unweighted_new <- roc_list_new[!grepl("_w$", names(roc_list_new))]
+roc_weighted_new   <- roc_list_new[grepl("_w$", names(roc_list_new))]
+auc_unweighted_new <- auc_values_new[!grepl("_w$", names(auc_values_new))]
+auc_weighted_new   <- auc_values_new[grepl("_w$", names(auc_values_new))]
+
+# unweighted roc plot
+plot(roc_unweighted_new[[1]], col = 1, lwd = 2, main = "Unweighted ROC Curves by Model")
+for (j in 2:length(roc_unweighted_new)) {
+  lines(roc_unweighted_new[[j]], col = j, lwd = 2)
+}
+
+legend("bottomright",
+       legend = paste(names(roc_unweighted_new), "AUC =", round(auc_unweighted_new, 3)),
+       col = 1:length(roc_unweighted_new), lwd = 2, bty = "n")
+
+# weighted roc plot
+plot(roc_weighted_new[[1]], col = 1, lwd = 2, main = "Weighted ROC Curves by Model")
+for (j in 2:length(roc_weighted_new)) {
+  lines(roc_weighted_new[[j]], col = j, lwd = 2)
+}
+
+legend("bottomright",
+       legend = paste(names(roc_weighted_new), "AUC =", round(auc_weighted_new, 3)),
+       col = 1:length(roc_weighted_new), lwd = 2, bty = "n")
+
+
+auc_df_new <- data.frame(
+  Model = c("Base", "Base + Lag1", "Base + Lag2", "Base + Lag3"),
+  AUC = c(auc_values_new["base_new"], auc_values_new["base_lag1_new"], auc_values_new["base_lag1_2_new"], auc_values_new["all_new"])
+)
+
+auc_df_w_new <- data.frame(
+  Model = c("Weighted Base", "Weighted Base + Lag1", "Weighted Base + Lag2", "Weighted Base + Lag3"),
+  AUC = c(auc_values_new["base_new_w"], auc_values_new["base_lag1_new_w"], auc_values_new["base_lag1_2_new_w"], auc_values_new["all_new_w"])
+)
+
+print(auc_df_new)
+print(auc_df_w_new)
+
+best_index_new <- which.max(auc_df_new$AUC)
+best_index_w_new <- which.max(auc_df_w_new$AUC)
+best_model_name_new <- auc_df_new$Model[best_index_new]
+best_model_name_w_new <- auc_df_w_new$Model[best_index_new]
+print(best_model_name_new)
+print(best_model_name_w_new)
+```
+```{r doneko}
+model_base_final_new <- glm(formulas_new[[1]], data = final_train_scaled, family = binomial())
+model_base_final_new_w <- glm(formulas_new[[1]], data = final_train_scaled, family = binomial(), weights = ifelse(final_train_scaled$status_label_1yr == 1, floor(weightings[2]), 0.01))
+
+glm_probs_basefinal_new = predict(model_base_final_new, newdata = final_test_scaled, type ="response")
+glm_probs_basefinal_new_w = predict(model_base_final_new_w, newdata = final_test_scaled, type ="response")
+roc_objbfinal_new <- roc(final_test_scaled$status_label_1yr, glm.probs_basefinal_new)
+roc_objbfinal_new_w <- roc(final_test_scaled$status_label_1yr, glm.probs_basefinal_new_w)
+
+cat("Unweighted Base Model AUC:", roc_objbfinal_new$auc, "\n")
+cat("Weighted Base Model AUC:", roc_objbfinal_new_w$auc, "\n")
+
+final_thresh_new <- coords(roc_objbfinal_new_w, "best", ret = "threshold")
+
+glm.pred <- ifelse(glm_probs_basefinal_new_w > final_thresh_new$threshold, 1, 0)
+actual <- final_test_scaled$status_label_1yr
+
+cm <- table(Predicted = glm.pred, Actual = actual)
+cm
+
+TP <- cm[2, 2]  
+TN <- cm[1, 1]  
+FP <- cm[2, 1]  
+FN <- cm[1, 2]
+
+accuracy  <- (TP + TN) / sum(cm)
+precision <- TP / (TP + FP)
+recall    <- TP / (TP + FN)
+f1_score  <- 2 * precision * recall / (precision + recall)
+
+cat("Accuracy:", round(accuracy, 3), "\n")
+cat("Precision:", round(precision, 3), "\n")
+cat("Recall:", round(recall, 3), "\n")
+cat("F1 Score:", round(f1_score, 3), "\n")
+summary(models_new[[2]])
+```
+
+Our AUC has increased via the removal of said variables. Hence we can conclude that the weighted base model. Lastly, checking the summary of this model, we see that   
+
+
