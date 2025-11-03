@@ -1,0 +1,409 @@
+---
+title: "Untitled"
+output:
+  html_document: default
+  word_document: default
+date: "2025-11-03"
+---
+```{r}
+library(ggplot2)
+library(tidyr)
+library(caret)
+library(dplyr)
+```
+The data we are using is a panel data containing various financial features a US company has and whether it went bankrupt between 1998-2018 originate from [reference]. Since our goal is to train the algorithm to be able to classifie a company that is potentially about to go bankrupt, there are several data processing rask that we need to do before it is usable. 
+
+Firstly, one of our aim is the examine whether that lag features(Information from previous years) can help predict the potential bankruptcy in current year. In this project, we considered up to 3 lag years. In order to do so, the data from year 1998 - 2001 is removed as some of the lag features they contain will have NAN values and we believe that they tradeoff between removing instead of imputing missing value is justified here given that the data set is quite large. Additionally we also need to remove company which contains less than three consequtive recorded years as this results again in NAN values for lag features. It is worth noting that this may introduce a form of bias against younger company. As the data now only consider a stable company with age of atleast 3 years.
+
+Secondly, the dataset labeled healthy companies between 1998-2018 as 'alive' and companies that has gone bankrupt during this period as 'bankrupt' for all years instead of only on their final year. This means that if we were to train the algorithm using financial feature from many years before a company bankruptcies, when the company might still be healthy, the algorithm might learn characteristic of a perfectly healthy company as potential indicator of bankruptcies. This may shift the decision boundary in an unwanted ways. To avoid this, we change all bankrupt labeled to 'alive' except for the final year. Additionally, this also avoid a variant of a phenomenon referred to as temporal leakage, where for example if the company went bankruptcies during year 2018 and say we decided to train the data up to a certain year before 2018 then we should not have access to this information in the training set.
+
+Finally, we need to address the issue of cross sectional leakage. This phenomenon occurs when the same companies appear in both train and test dataset. It results in implicit structure of a company being learned within the training set. For example if the underlying true model of the financial features is a variation of a fixed effect model, the algorithm may implicitly learned these features and inturn do a better job at predicting the behaviour of these companies. Although this provide no issue if the goal is to forecast the behaviour of these companies. However, the aim of this project is to generalised the algorithm to be able to predict the bankruptcies of unseen companies and so these form of leakage is undesirable.
+
+Both temporal and cross sectional leakage introduced their own unique issue that leads to an overestimation of the performance of the trained model in the test data. This may results in potential investor or users of the algorithm having a skewed perception of the algorithm reliability. Therefore it is critical that we address these issue pressing forward. In order to do so, we followed the guideline on how to split the data from (reference) closely. Additionally, for method that required standardization, special care is given to avoid temporal leakage. How these procedure is achieve will be describe throughout this R-markdown file.
+
+
+```{r}
+#data initialisation
+bankruptcy_data <- read.csv("C:\\Users\\railt\\DataScienceFanClub\\Data\\raw_data.csv")
+```
+Total number of company
+```{r}
+cat('total number of unique company is', length(unique(bankruptcy_data$company_name)))
+
+```
+
+```{r}
+failed_comp_total <- bankruptcy_data %>% 
+  filter(status_label == "failed")
+
+cat('total number of unique companies labeled as bankrupt is',length(unique(failed_comp_total$company_name)))
+```
+Here we check for company if there is a year skip within the time series i.e. there's a jump between year 2012 to 2014 without including 2013. This is done so that
+```{r}
+company_list <- data.frame(company = unique(bankruptcy_data$company_name))
+
+broken_rec_comp <- c()
+
+for (i in 1:length(company_list$company)) {
+  company <- bankruptcy_data %>%
+    filter(company_name == company_list$company[i]) %>%
+    arrange(year)  # ascending order, oldest to newest
+  
+  consec_yrs <- 0
+  
+  if (nrow(company) > 1) {  # only check if there’s more than one year
+    for (j in 2:nrow(company)) {
+      if (company$year[j] == company$year[j - 1] + 1) {
+        consec_yrs <- consec_yrs + 1
+      } else {
+        broken_rec_comp <- append(broken_rec_comp, company$company_name[j])
+      }
+    }
+  }
+  rm(company)
+}
+
+
+broken_rec_comp_df <- as.list(broken_rec_comp)
+
+cat('total number of company that has a disrupted year is',length(unique(broken_rec_comp)))
+```
+
+
+total number of companies left over
+```{r}
+data_rm_br <- bankruptcy_data %>%
+  filter(!company_name %in% broken_rec_comp)
+
+cat('after data removing company without consequtive record the left over companies is', length(unique(data_rm_br$company_name)))
+```
+
+total number of company that's gone bankrpt
+```{r}
+failed_comp_2 <- data_rm_br %>% 
+  filter(status_label == "failed")
+
+length(unique(failed_comp_2$company_name))
+```
+
+
+Remove company that has less that 3 years of time being recorded
+```{r}
+recs_gt_three_yrs <- data_rm_br %>% 
+  group_by(company_name) %>% 
+  filter(n_distinct(year) >= 3)  %>%
+  mutate(first_year_rec = min(year),
+         last_year_rec = max(year),
+         number_years_rec = last_year_rec - first_year_rec) %>%
+  ungroup()
+
+cat('Theres a total of  ',length(unique(recs_gt_three_yrs$company_name)), ' companies left after filtering out.')
+```
+
+```{r}
+failed_comp_3yr <- recs_gt_three_yrs %>%
+  filter(status_label == "failed")
+
+length(unique(failed_comp_3yr$company_name))
+```
+
+```{r}
+
+status_label_change <- recs_gt_three_yrs %>% 
+  mutate(status_label_1yr = case_when(status_label == "failed" & year != last_year_rec ~ "alive",
+                                      status_label == "failed" & year == last_year_rec ~ "failed",
+                                      status_label == "alive" ~ "alive"),
+         status_label_2yr = case_when(status_label == "failed" & year != last_year_rec & year != last_year_rec - 1 ~ "alive",
+                                      status_label == "failed" & (year == last_year_rec | year == last_year_rec - 1) ~ "failed",
+                                      status_label == "alive" ~ "alive"),
+         status_label_3yr = case_when(status_label == "failed" & year != last_year_rec & year != last_year_rec - 1 & year != last_year_rec - 2 ~ "alive",
+                                      status_label == "failed" & (year == last_year_rec | year == last_year_rec - 1 | year == last_year_rec - 2) ~ "failed",
+                                      status_label == "alive" ~ "alive"))
+```
+
+```{r}
+status_label_change %>% 
+  count(status_label_1yr) 
+```
+
+
+# 1587 flaggd as failed (3*529)
+
+
+Add in lagged feature
+```{r}
+data_with_lag <-  status_label_change %>%
+  arrange(company_name, year) %>%              # make sure it’s ordered
+  group_by(company_name) %>%                   # do lags within each company
+  mutate(
+    across(
+      c(X1, X2, X3, X4, X5, X6, X7, X8, X9, X10, X11, X12, X13, X14, X15, X16, X17, X18),                           # variables to lag
+      list(
+        `1yr` = ~lag(.x, 1),
+        `2yr` = ~lag(.x, 2),
+        `3yr` = ~lag(.x, 3)
+      ),
+      .names = "{.col}_{.fn}"                  # naming pattern
+    )
+  ) %>%
+  ungroup()
+
+# Rearrange data 
+
+data_full <- data_with_lag %>% 
+  select(-status_label, -first_year_rec, -last_year_rec, -number_years_rec) %>%
+  relocate(status_label_1yr, .after = year) %>%
+  relocate(status_label_2yr, .after = status_label_1yr) %>%
+  relocate(status_label_3yr, .after = status_label_2yr)
+
+# Take out observations with NAs
+
+data_na_rm <- na.omit(data_full)
+
+
+#uncomment to create a file
+#filepath = file.path()
+
+#write.csv(bankcruptcy_data, "C:/Users/elois/OneDrive/Documents/University of Bristol/Semester 1/Data Science Toolbox/Assessments/Assessment 1/DataScienceFanClub/Data/raw_data.csv")
+
+#write.csv(data_full, "C:/Users/elois/OneDrive/Documents/University of Bristol/Semester 1/Data Science Toolbox/Assessments/Assessment 1/DataScienceFanClub/Data/preprocessed_data_full.csv")
+
+#write.csv(data_na_rm, "C:/Users/elois/OneDrive/Documents/University of Bristol/Semester 1/Data Science Toolbox/Assessments/Assessment 1/DataScienceFanClub/Data/preprocessed_data.csv")
+```
+
+Now that the data has been pre processed, it can now be split in to a train and test set. Given the three dimensional structure the panel data possessed, a traditional method will introduce an overestimation of the performance here, Limiting the model ability to generalise to real setting. This is due the effect of temporal and cross sectional leakage as discussed earlier. Taking this into account, we choose to split the data into a four segments. First we split the data company wise into a train and test set following a $80%/20%$ train test split. We then split again timewise, where we only consider the year 1998 to 2013 for training set, and $2014$ to $2018$ for test sets. This prevents the effect of temporal leakage where if the data is trained on the future time and information it may better learn autocorrelation structure and overestimate a performance onto a generalised model. Additionally, it is ideal that the test data accurately reflects real use. In this sense future knowledge is not accessible and so train and test should reflects accordingly.
+
+Additionally, in this half of the process we will perform signed log transformation and and creates a standaised version of the data. The signed log transform is done to reduce the effects of the outlier values. Here we chose not to remove them as they may represents, companies which out performs your average companies. Hence, removing them may reduce the effectiveness of the performance of the algorithm to predict behaviour of companies with those characteristics. 
+
+Meanwhile, The standardisation is a crucial step in ensuring that the algorithm which use distance metric is not contaminated by the differing feature scales as features with larger scale will dominates the computation of euclidean distance. Note that given that our data is a timeseries, standardisation cannot be done simply by the standard formula 
+
+$$X_{i,j}* = \frac{X_{i,j} - \mu_j}{\sigma_j},$$
+where $i$ is the sample index and $j$ is thre $j^th$ feature to be scaled
+This will be discussed further into the markdown file.
+
+
+With that being said, we first proceed by removing feature 16
+```{r}
+#rename preprocessed data into a classical df convention. X16 is removed due to its being a replicate with the other parameter
+df <- data_na_rm
+df <- df[, !names(df) %in% c('X16', 'X16_1yr', 'X16_2yr', 'X16_3yr')]
+
+```
+
+Here we perform a signed log transform on the numeric features of the data following the formula 
+
+$$L(x) = sign(x) * log(|x| + 1)$$
+```{r}
+#initialised the log version
+df_log <- df
+#do a signed log transform on all features to reduce skewness
+df_log[,7:74] <-(sign(df[,7:74]) * log(1 + abs(df[,7:74])))
+
+
+```
+
+We then first split the data into tran and test set crossectionally (company wise) by 80/20 test-train split. The time is then split at year 2014 as mentioned earlier. Additionally, on the subset of the train set we constructed a validation set by further splitting the train set similarly to the full set. Here the the train set is split company wise by  75/25 companies for train-validation. The split is slightly bigger here to account for a split from a smaller set. We then further split time to 1998-2011 for train and 2012 - 2013 for validation set.
+```{r}
+set.seed(666)
+#generate unique company name
+companies <- df %>% distinct(company_name) 
+companies <- pull(companies)
+
+#divide company in test and train company crossectionally
+train_companies <- sample(companies, size =floor(0.8*length(companies)))
+test_companies <- setdiff(companies, train_companies)
+
+df_train_companies <- df %>% filter(company_name %in% train_companies)
+df_test_companies  <- df %>% filter(company_name %in% test_companies)
+
+df_train_companies_log <- df_log %>% filter(company_name %in% train_companies)
+df_test_companies_log  <- df_log %>% filter(company_name %in% test_companies)
+#splt the train data into <2015 and test >=2015
+
+cutoff <- 2014
+val_cutoff <- 2012
+
+df_train_full <- df_train_companies %>% filter(year < cutoff)
+df_test <- df_test_companies %>% filter(year >= cutoff)
+
+#split companies into train and val
+companies_val <- df_train_full %>% distinct(company_name) 
+companies_val <- pull(companies_val)
+
+train_companies_val <- sample(companies_val, size =floor(0.75 *length(companies_val)))
+test_companies_val <- setdiff(companies_val, train_companies_val)
+757
+df_train_val <- df_train_full %>% filter(company_name %in% train_companies_val)
+df_test_val <- df_train_full %>% filter(company_name %in% test_companies_val)
+
+df_train_val <- df_train_val %>% filter(year < val_cutoff)
+df_test_val <- df_test_val %>% filter(year >= val_cutoff)
+
+#validation set for the log version
+df_train_log_full <- df_train_companies_log %>% filter(year < cutoff)
+df_test_log <- df_test_companies_log %>% filter(year >= cutoff)
+
+df_train_log_val <- df_train_log_full %>% filter(company_name %in% train_companies_val)
+df_test_log_val <- df_train_log_full %>% filter(company_name %in% test_companies_val)
+
+df_train_log_val <- df_train_log_val %>% filter(year < val_cutoff)
+df_test_log_val <- df_test_log_val %>% filter(year >= val_cutoff)
+
+
+```
+
+Now that we have a signed log transformed data, the next step is is to standardize the data. Before doing so first we need to address the temporal leakage issure. First note if we were to simply compute the mean $\mu_j$ and the standard deviation $\sigma_j$ then standardise the data using these time global values then the train data will be rescaled based on the $\mu_j$ and $\sigma_j$ which was computed using future values. Again, in real context future information should not be allow and this is another case of temporal leakage. An alternative method is to simply compute the mean of the train data and the apply the scaling parameter across the whole set given by $$X_{i,j}^* = \frac{X_{i,j} - \mu_{j,train}}{\sigma_{j,train}},$$ where $\mu_{j,train}$ and $\sigma_{j,train}$ are mean and standard deviation of the $j^{th}$ feature obtained using the train data set.
+
+However, this method of standardisation failed to account for the effect of time drift (the parameters may shift with time) as shown here
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(ggrepel)
+
+johnny1 <- df %>% select(any_of(c("year")), 7:23)
+
+johnny <- johnny1 %>%
+  group_by(year) %>%
+  summarise(across(where(is.numeric), mean, na.rm = TRUE))
+
+df_long <- johnny %>%
+  pivot_longer(cols = -year, names_to = "feature", values_to = "mean_value")
+
+# get the last year for each feature to place the labels
+df_labels <- df_long %>%
+  group_by(feature) %>%
+  filter(year == max(year))
+
+ggplot(df_long, aes(x = year, y = mean_value, color = feature)) +
+  geom_line(size = 1) +
+  geom_vline(xintercept = 2014, linetype = "dashed", color = "black", linewidth = 0.8)+
+  
+  geom_text_repel(
+    data = df_labels,
+    aes(label = feature),
+    size = 3,
+    show.legend = FALSE
+  ) +
+  theme_minimal(base_size = 13) +
+  labs(
+    title = "Yearly Mean for Each Feature",
+    x = "Year",
+    y = "Mean Value"
+  ) +
+  theme(
+    legend.position = "none", 
+    plot.title = element_text(face = "bold")
+  )
+
+```
+From the graph we can see clearly that the time drift in the data is quite significant. Given the limited understanding and lack of access to expert knowledge which may be available in a real world setting our best guest is to account for this drift by adjusting for inflation. Since the data concerns US company, we attempt the adjust by using USA mean CPI index for each year. This data is obtained from https://fred.stlouisfed.org/series/CPIAUCSL. The inflation is adjusted by using the formula
+
+$$X_{t,adjust} = X_{t} \times \frac{CPI_{2002}}{CPI_{t}}$$
+here the year $2002$ is used as the base year since after preprocessing (removing the first 3 years of the data to remove the NAN from lag features.)
+
+```{r}
+library(dplyr)
+inflation <- data.frame(
+  year = 1999:2023,
+  cpi  = c(166, 172.2, 177.7, 179.6, 183.1, 188.9, 193.7, 201.8, 207.2, 217.5,
+           214.8, 217.1, 224.8, 228.5, 232.4, 237.2, 237.6, 240.2, 244.2, 251,
+           255.2, 257.0, 270.7, 295.07, 304.1) 
+)
+
+base_year <- 2002
+cpi_base <- inflation$cpi[inflation$year == base_year]
+
+#adjust by using the formula cpi_base/cpi
+df_adj <- df %>%
+  left_join(inflation, by = "year") %>%
+  mutate(across(7:23, ~ .x * (cpi_base / cpi)))
+
+
+```
+
+After the inflation is adjusted we found that the effect of the time drift is still present. Hence we conclude that the growth of the economical features is not due to inflation alone but due to a general growth of companies and other factors that is beyond the scope of the project. Therefore, we choose to proceed forward with the scaling method previously discussed, while being aware that this may be a factor which limited the performance of a distance baseed method.
+
+```{r}
+johnny1 <- df_adj %>% select(any_of(c("year")), 7:23)
+
+johnny <- johnny1 %>%
+  group_by(year) %>%
+  summarise(across(where(is.numeric), mean, na.rm = TRUE))
+
+df_long <- johnny %>%
+  pivot_longer(cols = -year, names_to = "feature", values_to = "mean_value")
+
+# get the last year for each feature to place the labels
+df_labels <- df_long %>%
+  group_by(feature) %>%
+  filter(year == max(year))
+
+ggplot(df_long, aes(x = year, y = mean_value, color = feature)) +
+  geom_line(size = 1) +
+  geom_vline(xintercept = 2014, linetype = "dashed", color = "black", linewidth = 0.8)+
+  
+  geom_text_repel(
+    data = df_labels,
+    aes(label = feature),
+    hjust = 0,
+    nudge_x = 0.3,
+    size = 3,
+    show.legend = FALSE
+  ) +
+  theme_minimal(base_size = 13) +
+  labs(
+    title = "Yearly Mean per Feature(inflation adjusted)",
+    x = "Year",
+    y = "Mean Value"
+  ) +
+  theme(
+    legend.position = "none",  # hide legend since we have labels
+    plot.title = element_text(face = "bold")
+  )
+
+```
+Here the data is split between the full train-test set and a train-val set. The scaling is done by taking the parameters from train set and apply it to test or val respectively. 
+```{r}
+
+
+#remove(category, sample index, and company name)
+feature_to_scale = colnames(df)[-c(1,2,4,5,6)]
+
+#record set of means and stds for each feature in the train data
+scaler <- preProcess(df_train_log_full[, feature_to_scale], method = c('center','scale'))
+scaler_val <- preProcess(df_train_log_val)
+#scale both train and test data using the means and stds value from the train data
+train_scaled_full <- predict(scaler, df_train_log_full)
+test_scaled <- predict(scaler, df_test_log)
+
+train_scaled_val <- predict(scaler_val, df_train_log_val)
+test_scaled_val <- predict(scaler_val, df_test_log_val)
+
+```
+
+```{r}
+
+#write.csv(df_train_log_full, "C:\\Users\\railt\\DataScienceFanClub\\Data\\Final_traindata\\df_train_log_full.csv")
+#write.csv(df_test_log, "C:\\Users\\railt\\DataScienceFanClub\\Data\\Final_traindata\\df_test_log.csv")
+
+#write.csv(df_train_full, "C:\\Users\\railt\\DataScienceFanClub\\Data\\Final_traindata\\df_train_full.csv")
+#write.csv(df_test, "C:\\Users\\railt\\DataScienceFanClub\\Data\\Final_traindata\\df_test.csv")
+
+#write.csv(train_scaled_full, "C:\\Users\\railt\\DataScienceFanClub\\Data\\Final_traindata\\df_train_log_scaled_full.csv")
+#write.csv(test_scaled, "C:\\Users\\railt\\DataScienceFanClub\\Data\\Final_traindata\\df_test_log_scaled.csv")
+
+```
+
+```{r}
+#write.csv(df_train_log_val, "C:\\Users\\railt\\DataScienceFanClub\\Data\\Val_traindata\\df_train_log_val.csv")
+#write.csv(df_test_log_val, "C:\\Users\\railt\\DataScienceFanClub\\Data\\Val_traindata\\df_test_log_val.csv")
+
+#write.csv(df_train_val, "C:\\Users\\railt\\DataScienceFanClub\\Data\\Val_traindata\\df_train_val.csv")
+#write.csv(df_test_val, "C:\\Users\\railt\\DataScienceFanClub\\Data\\Val_traindata\\df_test_val.csv")
+
+#write.csv(train_scaled_val, "C:\\Users\\railt\\DataScienceFanClub\\Data\\Val_traindata\\df_train_log_scaled_val.csv")
+#write.csv(test_scaled_val, "C:\\Users\\railt\\DataScienceFanClub\\Data\\Val_traindata\\df_test_log_scaled_val.csv")
+
+```
