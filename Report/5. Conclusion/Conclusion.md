@@ -3,6 +3,8 @@
 
 **Key Takeaways**
 
+Ultimately, our results showed that..
+
 
 **Further topics for exploration**
 
