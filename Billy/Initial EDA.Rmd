@@ -15,7 +15,7 @@ knitr::opts_chunk$set(echo = TRUE)
 Basic EDA for American Bankruptcy Dataset
 
 ```{r packages}
-pkgs <- c("tidyverse","ggplot2","corrplot","dplyr","magrittr","RColorBrewer", "data.table", "rlang", "patchwork")
+pkgs <- c("tidyverse","ggplot2","corrplot","dplyr","RColorBrewer", "data.table", "rlang", "patchwork")
 
 for(p in pkgs){
     if (!require(p,character.only=TRUE)) install.packages(p)
@@ -112,13 +112,13 @@ barplot1 <- ggplot(companies_by_year, aes(x = factor(year), y = num_companies)) 
 barplot1
 ```
 
-We see a steady decrease in the number of companies active each year. [[PUT SOME ADDED EXPLAINATION AS TO PERHAPS WHY HERE??]]
-
-We can see the difference in companies over each year in more depth by seeing the number of companies which leave the dataset, regardless of if they went bankrupt or not.
+We see a steady decrease in the number of companies active each year. We can see the difference in companies over each year in more depth by seeing the number of companies which leave the dataset, regardless of if they went bankrupt or not.
 
 ```{r companies over time}
 new_comp = list()
 left_comp = list()
+alive_list = list()
+failed_list = list()
 prev_total = 0
 for (i in unique(dataset$year)) {
   alive_year <- length(dataset$company_name[dataset$status_label_1yr=="alive" & dataset$year==i])
@@ -130,7 +130,9 @@ for (i in unique(dataset$year)) {
   key_next <- as.character(i + 1)
   new_comp[[key_next]] <- new_companies
   left_comp[[key_next]] <- left_companies
-
+  alive_list[[key_next]] <- alive_year
+  failed_list[[key_next]] <- failed_year
+  
   total_this_year <- alive_year + failed_year
 
   cat(
@@ -146,14 +148,36 @@ for (i in unique(dataset$year)) {
   prev_total <- total_this_year
 }
 ```
-See that the total number of companies recorded in one year is simply the companies that did not bankrupt from the previous year plus the new entrants minus the companies who left the study within the year (taking into account the number of companies who left because of bankruptcy). Clearly in the vast majority of years there are more companies leaving the study then there are joining it. With expert knowledge it will be possible to evaluate why this is the case [[EXPLAIN MORE HERE EXTERNAL FACTORS AND STUFF]].
+See that the total number of companies recorded in one year is simply the companies that did not bankrupt from the previous year plus the new entrants minus the companies who left the study within the year (taking into account the number of companies who left because of bankruptcy). Clearly in the vast majority of years there are more companies leaving the study then there are joining it. With expert knowledge it will be possible to evaluate why this is the case. We can further this analysis by plotting failed companies and companies that left the study to visualise and spot any possible trends.
+
+```{r failedleft, fig.height=3, fig.width=12}
+failed_df <- data.frame(year = as.integer(names(failed_list)), failed = as.numeric(failed_list))
+barplot_f <- ggplot(failed_df, aes(x = factor(year), y = failed)) +
+            geom_col(color = "black", fill = "skyblue") +
+            labs(title = "Failed Companies by Year", x = "Year", y = "Failed Companies") +
+            theme_minimal(base_size = 13) +
+            theme(axis.text.x = element_text(angle = 45))
+
+num_left_comp <- sapply(left_comp, length)
+num_left_comp <- num_left_comp[names(num_left_comp) != "2019"] # skews data heavily, useless for us
+left_df <- data.frame(year = as.integer(names(num_left_comp)), left = as.numeric(num_left_comp))
+barplot_left <- ggplot(left_df, aes(x = factor(year), y = left)) +
+            geom_col(color = "black", fill = "skyblue") +
+            labs(title = "Companies that left Study Yearly", x = "Year", y = "Companies that left study") +
+            theme_minimal(base_size = 13) +
+            theme(axis.text.x = element_text(angle = 45))
+
+barplot_f + barplot_left
+```
+
+There seemed to be a large amount of failed companies around the mid to late 2000s. This could be in part to the Financial Crisis of 2008, which heavily impacted many business worldwide but in particular those located in the United States. Yet, without expert knowledge it is only a suggestion and there may be external factors that heavily impacted the bankruptcy rate. Furthermore, with a time scale of just over 15 years it is hard to gauge how regular, or irregular, our data is with respect to the past.
 
 We can extend this to other variables. In each scenario we will take the mean of said variable and visualise the changes over each year in the dataset to see how values fluctuate in that time frame. We start with X1 and X2.
 
 ```{r barplotx1x2, fig.height=3, fig.width=10}
 mean_curr_assets <- dataset[, .(mean_curr_assets = mean(X1)), by = year][order(year)]
 
-barplot1 <- ggplot(mean_curr_assets, aes(x = factor(year), y = mean_curr_assets)) +
+barplot2 <- ggplot(mean_curr_assets, aes(x = factor(year), y = mean_curr_assets)) +
             geom_col(color = "black", fill = "skyblue") +
             labs(title = "Mean Current Assets by Year", x = "Year", y = "Mean Current Assets") +
             theme_minimal(base_size = 13) +
@@ -161,16 +185,16 @@ barplot1 <- ggplot(mean_curr_assets, aes(x = factor(year), y = mean_curr_assets)
 
 mean_cost_goods_sold <- dataset[, .(mean_cost_goods_sold = mean(X2)), by = year][order(year)]
 
-barplot2 <- ggplot(mean_cost_goods_sold, aes(x = factor(year), y = mean_cost_goods_sold)) +
+barplot3 <- ggplot(mean_cost_goods_sold, aes(x = factor(year), y = mean_cost_goods_sold)) +
             geom_col(color = "black", fill = "skyblue") +
             labs(title = "Mean Cost of Goods Sold by Year", x = "Year", y = "Mean Cost of Goods Sold") +
             theme_minimal(base_size = 13) +
             theme(axis.text.x = element_text(angle = 45))
 
-barplot1 + barplot2
+barplot2 + barplot3
 ```
 
-Both variables follow similar patterns, that is an increase in the mean variable as time increases. [[AGAIN TALK MORE - RELATE TO EXPERT KNOWLEDGE AND PERHAPS INFLATION]].
+Both variables follow similar patterns, that is an increase in the mean variable as time increases. This may be because of inflation, or as we are using the mean then many major firms have simply grown much faster than others raising the mean slightly; withouth expert knowledge it is hard to tell. 
 
 Like before, it is important to see whether all variables provide similar results. Hence we extend to all remaining variables of interest.
 
@@ -231,9 +255,9 @@ for (i in seq_along(histplot_groups)) {
 }
 ```
 
-Without further inspection our plots look to follow a normal distribution, hence succeeding in standardising the variables. Yet, a variable such as X15 has over 22000 observations simply ignored due to the high frequency of negative values associated with said variable. Therefore it is illogical to proceed with such a transformation as we are essentially ignoring data. This leads us to a more apt transformation called Yeo-Johnson.
+Without further inspection our plots look to follow a normal distribution, hence succeeding in standardising the variables. Yet, a variable such as X15 has over 22000 observations simply ignored due to the high frequency of negative values associated with said variable. Therefore it is illogical to proceed with such a transformation as we are essentially ignoring data. This leads us to a more apt transformation called Log-Modulus.
 
-```{r hists yeo johnson, fig.height=3.8, fig.width=10}
+```{r hists log mod, fig.height=3.8, fig.width=10}
 # We provide a log transform on the absolute value of the variable (and add 1) then multiply by the original sign of the variable
 
 histp1 <- ggplot(data = dataset, aes(x = log1p(abs(X1))*sign(X1))) +
@@ -246,9 +270,10 @@ histp2 <- ggplot(data = dataset, aes(x = log1p(abs(X2))*sign(X2))) +
 
 histp1 + histp2
 ```
-We extend this to the remaining variables.
 
-```{r loop histogram yeo johnson}
+We extend this to the remaining variables for clarity.
+
+```{r loop histogram log modulus}
 histplots <- list()
 for (var in covariates) {
   p <- ggplot(data = dataset, aes(x = log1p(abs(.data[[var]]))*sign(.data[[var]]))) +
@@ -266,7 +291,7 @@ for (i in seq_along(histplot_groups)) {
 }
 ```
 
-We see that many of the variables do not contain the symmetric and smooth structure associated with a normal distribution. Yet, all of the observations are taken into consideration, hence we will proceed with such a transformation. [[PERHAPS WRITE MORE HERE IN FURTHER DETAIL]]
+We see that many of the variables do not contain the symmetric and smooth structure associated with a normal distribution. Yet, all of the observations are taken into consideration and so we are not discarding any values. This transformation does reduce the impact that outliers have on our data, hence in the model analysis section of the report it is important that certain models use this transformed data.
 
 We proceed onto measuring the correlation between variables.
 
@@ -292,6 +317,4 @@ print(correlated_vars)
 
 We see that the variables X2, X4, X9, X10 (and X16) are highly correlated to one or more variables within the dataset. Therefore, for possible further analysis in the model selection section part of the report, one may wish to remove them and see whether it improves their model.
 
-[[ADD CONCLUSION FOR EDA HERE]]
-
-
+This concludes the EDA section of the report. We have covered trends in the mean data over the years, showing that all variables follow a similar upwards trend. We have also identified the impact of outliers on our data and that many of the variables have high correlation. This will be of further use in the next part of the report.
