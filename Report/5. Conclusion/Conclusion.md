@@ -12,10 +12,7 @@ Firstly, we could explore more intricate methods of cross-validation. Usual in-b
 
 Secondly, a major line of investigation would be adjusting for inflation and company growth. In normalising our training set, we naturally use the mean of the training set. However, for the test set, to simplify using the mean of the training data wouldn't properly take in to account both inflation and the natural growth of the company. Over a shorter-term period this isn't as significant, however, it certainly is an important factor for time series and financial data. For us, this highlights the importance of expert knowledge which would allow us to better understand the implications of these factors and how to investigate them. 
 
-Thirdly, 
 
-
-using neural networks, risk of overfitting 
 
 
 
