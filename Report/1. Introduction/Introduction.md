@@ -3,11 +3,19 @@
 
 **Our goal**
 
-This project looks at a finance dataset from Kaggle outlining company metrics over time and their bankruptcy status. We were interested in solving the binary classification problem: given a company's metrics in a certain year _n_, will it go bankrupt in year _n_. We were then interested in determining the importance of different features and exploring how the quality of our predictions would change as we introduced additional company metrics from years _n-1_, _n-2_ and _n-3_. 
+This project looks at a finance dataset from Kaggle outlining a company's metrics over time and their bankruptcy status. 
 
-Our chosen models include a Random Forest, XGboost, logistic regression, K Nearest Neighbours and SVM. Here, we aim to not just answer the binary classification problem but to explore how these different models compare - using our chosen performance metric to gauge the relative fit and suitability of each model for this specific problem. 
+We were interested in solving the binary classification problem: given a company's metrics in a certain year _n_, will it go bankrupt in year _n_. We specifically wanted to investigate how our prediction power would change as we introduced additional company metrics from years _n-1_, _n-2_ and _n-3_. 
 
-For each model, we will train it on the training set and test it on the validation set to determine which number of features produced the highest AUC value. Then, that specific feature selection will be used to train on the entire training set before finally testing on the test set. 
+Our chosen models include a Random Forest, XGboost, logistic regression, K Nearest Neighbours and SVM. We aim to explore how these models perform according to our chosen performance metric AUC.
+
+For each model, we will train it on the training set and test it on the validation set to determine which combination of features produced the highest AUC value. Then, that specific feature selection will be used to train on the entire training set before finally testing on the test set. 
+
+**Our motivation**
+
+In the context of finance, the result of this report is hugely beneficial in understanding how far out from a certain year can we forecast a company's bankruptcy status. This would be important for companies to monitor their own risk of bankruptcy. Investors can also find this useful in either identifying when to sell investments or to actually invest in failing companies - an area of finance referred to as distressed debt where failing companies are bought, improved and sold for a profit. 
+
+
 
 
 
