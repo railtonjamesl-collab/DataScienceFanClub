@@ -1,21 +1,21 @@
-Structure of the project
-Introduction
+# Structure of the project
 
-Our goal
-Our motivation
-Data Preparation
+1. Introduction
+   - Our goal
+   - Our motivation
 
-Deciding on our dataset
-Pre-processing of our data
-Exploratory data analysis
-Methodology
+2. Data Preparation
+   - Deciding on our dataset
+   - Pre-processing of our data
+   - Exploratory data analysis
 
-Determining which features to use in the test set
-Results and Discussion
+3. Methodology
+   - Determining which features to use in the test set
 
-Result of each model being run on the test set
-Aggregating and interpreting our results
-Conclusion
+4. Results and Discussion
+   - Result of each model being run on the test set
+   - Aggregating and interpreting our results
 
-Key takeaways
-Further options for exploration
+5. Conclusion
+   - Key takeaways
+   - Further options for exploration
