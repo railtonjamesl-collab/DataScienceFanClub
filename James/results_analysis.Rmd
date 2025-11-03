@@ -19,6 +19,7 @@ library(PRROC)
 library(xgboost)
 library(tidyr)
 ```
+
 ```{r}
 
 results_nolag <- read.csv("C:\\Users\\railt\\DataScienceFanClub\\James\\results_nolag.csv")
@@ -49,7 +50,7 @@ ggplot(all_res, aes(x = factor(cost), y = gamma_lab, fill = AUC)) +
 ```{r}
 all_res_long <- all_res %>%
   pivot_longer(
-    cols = c( AUC, Sensitivity, Specificity),
+    cols = c(Accuracy, AUC, Sensitivity, Specificity),
     names_to = "metric", values_to = "value"
   )
 
