@@ -2,6 +2,7 @@
 
 1. Introduction
    - Our goal
+   - Our motivation
 
 2. Data Preparation
    - Deciding on our dataset
