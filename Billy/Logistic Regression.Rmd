@@ -9,14 +9,11 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r required libraries}
-pkgs <- c("data.table", "pROC", "car")
+pkgs <- c("pROC", "car", "glmnet", "logistf")
 
 for(p in pkgs){
     if (!require(p,character.only=TRUE)) install.packages(p)
 }
-
-library(pROC)
-library(car)
 ```
 
 ```{r read}
@@ -57,16 +54,8 @@ vif(model_base)
 summary(model_base)
 ```
 
-There is high collinearity between variables. We will explore this more after our initial testing. We weight variables to counter act the imbalance class size in the dataset. We use the method outlined in King (2001) [1] to determine our weightings.
+There is high collinearity between variables. We will explore this more after our initial testing. 
 
-```{r weighted baseline}
-ratios <- c(200/200, (1000-200)/(18863-200))
-weightings <- c((200/18863)/ratios[1], (1-(200/18863))/ratios[2])
-
-weight <- ifelse(train_val$status_label_1yr == 1, floor(weightings[2]), 0.01)
-model_base <- glm(formula_base, data = train_val, family = binomial(), weights = weight)
-summary(model_base)
-```
 
 ```{r loop for models}
 formulas <- list(
@@ -79,7 +68,7 @@ formulas <- list(
 models <- list()
 for (i in names(formulas)) {
   f <- formulas[[i]]
-  models[[i]] <- glm(f, data = train_val, family = binomial(), weights = weight)
+  models[[i]] <- glm(f, data = train_val, family = binomial())
 }
 
 for (i in names(models)) {
@@ -173,7 +162,7 @@ formulas_new <- list(
 models_new <- list()
 for (i in names(formulas_new)) {
   f <- formulas_new[[i]]
-  models_new[[i]] <- glm(f, data = train_val, family = binomial(), weights = weight)
+  models_new[[i]] <- glm(f, data = train_val, family = binomial())
 }
 
 for (i in names(models_new)) {
@@ -223,21 +212,71 @@ best_model_name_new <- auc_df_new$Model[best_index_new]
 print(best_model_name_new)
 ```
 
-Our AUC has slightly improved. For futher study, attempt to use LASSO and Elastic Net [3].
+Our AUC has slightly improved. For further study, attempted to weight variables to counter act the imbalance class size in the dataset using the method outlined in King (2001) [1] to determine our weightings. Quickly discovered this method was not applicable. Attempt to use Firth logit [2], LASSO and Elastic Net [3].
 
-```{r LASSO}
+```{r logit firth}
+models_firth <- list()
+for (i in names(formulas)) {
+  f <- formulas[[i]]
+  models_firth[[i]] <- logistf(f, data = train_val)
+}
+
+glm_probs_firth <- list()
+for (i in names(models_firth)) {
+  mod <- models_firth[[i]]
+  glm_probs_firth[[i]] <- predict(mod, newdata = test_val, type = "response")
+}
+
+roc_list_firth <- list()
+auc_values_firth <- numeric()
+
+for (i in names(glm_probs_firth)) {
+  roc_list_firth[[i]] <- roc(test_val$status_label_1yr, glm_probs_firth[[i]])
+  auc_values_firth[i] <- auc(roc_list_firth[[i]])
+}
+
+# view AUC results
+print(round(auc_values_firth, 3))
+
+plot(roc_list_firth[[1]], col = 1, lwd = 2, main = "ROC Curves by Model")
+for (j in 2:length(roc_list_firth)) {
+  lines(roc_list_firth[[j]], col = j, lwd = 2)
+}
+
+legend("bottomright",
+       legend = paste(names(roc_list_firth), "AUC =", round(auc_values_firth, 3)),
+       col = 1:length(roc_list_firth), lwd = 2, bty = "n")
+
+auc_df_firth <- data.frame(
+  Model = c("Base", "Base + Lag1", "Base + Lag1 + Lag 2", "Base + All Lags"),
+  AUC = c(auc_values_firth["base"], auc_values_firth["base_lag1"], auc_values_firth["base_lag1_2"], auc_values_firth["all"])
+)
+
+print(auc_df_firth)
+
+best_index_firth <- which.max(auc_df_firth$AUC)
+best_model_name_firth <- auc_df_firth$Model[best_index_firth]
+print(best_model_name_firth)
+```
+
+```{r LASSO ENET RIDGE}
 y_train <- as.integer(train_val$status_label_1yr == "failed")
 x_train <- model.matrix(~ . - X.1 - X - status_label_1yr - status_label_2yr - status_label_3yr - company_name - year, data = train_val)
 set.seed(1)
-cvfit <- cv.glmnet(x_train,  train_val$status_label_1yr, family = "binomial", alpha = 1, type.measure = "auc", weights = weight)
+cvfit <- cv.glmnet(x_train,  train_val$status_label_1yr, family = "binomial", alpha = 1, type.measure = "auc")
 plot(cvfit)
 cvfit$lambda.min
 cvfit$lambda.1se
 
-cvfit_en <- cv.glmnet(x_train,  train_val$status_label_1yr, family = "binomial", alpha = 0.5, type.measure = "auc", weights = weight)
+cvfit_en <- cv.glmnet(x_train,  train_val$status_label_1yr, family = "binomial", alpha = 0.5, type.measure = "auc")
 plot(cvfit_en)
 cvfit_en$lambda.min
 cvfit_en$lambda.1se
+
+cvfit_ridge <- cv.glmnet(x_train,  train_val$status_label_1yr, family = "binomial", alpha = 0, type.measure = "auc")
+plot(cvfit_ridge)
+cvfit_ridge$lambda.min
+cvfit_ridge$lambda.1se
 ```
 
 LASSO and Elastic Net AUC is slightly below previous tests. For future study, it is possible to explore the reasons for this.
@@ -252,7 +291,7 @@ for (col in cols) {
   final_test[[col]]  <- ifelse(final_test[[col]] == "failed", 1, 0)
 }
 
-model_base_final <- glm(formulas[[1]], data = final_train, family = binomial(), weights = ifelse(final_train$status_label_1yr == 1, floor(weightings[2]), 0.01))
+model_base_final <- glm(formulas[[1]], data = final_train, family = binomial())
 
 glm_probs_basefinal = predict(model_base_final, newdata = final_test, type ="response")
 roc_objbfinal <- roc(final_test$status_label_1yr, glm_probs_basefinal)
@@ -287,7 +326,7 @@ legend("bottomright", legend = paste(("Base"), "AUC =", round(roc_objbfinal$auc,
 ```
 
 ```{r final test}
-model_base_final_new <- glm(formulas_new[[1]], data = final_train, family = binomial(), weights = ifelse(final_train$status_label_1yr == 1, floor(weightings[2]), 0.01))
+model_base_final_new <- glm(formulas_new[[1]], data = final_train, family = binomial())
 
 glm_probs_basefinal_new = predict(model_base_final_new, newdata = final_test, type ="response")
 roc_objbfinal_new <- roc(final_test$status_label_1yr, glm_probs_basefinal_new)
