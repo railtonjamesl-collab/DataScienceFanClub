@@ -1,0 +1,250 @@
+---
+title: "XGBoost with tuned parameters"
+output: html_document
+date: "2025-10-31"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r echo=FALSE}
+library(xgboost)
+library(dplyr)
+library(pROC)
+library(ggplot2)
+library(caret)
+```
+
+Loading required datasets
+```{r}
+df_train <- read.csv("../Data/Val_traindata/df_train_val.csv")
+df_val <- read.csv("../Data/Val_traindata/df_test_val.csv")
+
+df_train_full <- read.csv("../Data/Final_traindata/df_train_full.csv")
+df_test <- read.csv("../Data/Final_traindata/df_test.csv")
+```
+
+```{r}
+features <- paste0("X", 1:15)
+base_features <- c(features, "X17", "X18")
+
+lag_1yr_feats <- c(base_features, paste0(base_features, "_1yr"))
+lag_2yr_feats <- c(lag_1yr_feats, paste0(base_features, "_2yr"))
+lag_3yr_feats <- c(lag_2yr_feats, paste0(base_features, "_3yr"))
+
+target <- "status_label_1yr"
+
+print(sum(df_train[[target]] == "failed"))
+print(sum(df_train[[target]] == "alive"))
+
+set.seed(123)
+```
+Generating random parameters
+```{r}
+random_params <- function() {
+  return(list(
+    eta = runif(1, 0.01, 0.3),
+    max_depth = sample(3:8, 1),
+    subsample = runif(1, 0.7, 1.0),
+    colsample_bytree = runif(1, 0.5, 1.0),
+    min_child_weight = sample(1:5, 1),
+    gamma = runif(1, 0, 5)
+  ))
+}
+```
+
+Functions for training/evaluations
+```{r}
+xgboost_model_1fold <- function(features, parameters){
+  df_train[[target]] <- as.numeric(df_train[[target]] == "failed")
+  df_val[[target]] <- as.numeric(df_val[[target]] == "failed")
+  
+  dtrain <- xgb.DMatrix(data = as.matrix(df_train[, features]), label = df_train[[target]])
+  dval <- xgb.DMatrix(data = as.matrix(df_val[, features]), label = df_val[[target]])
+  
+  # Class imbalances
+  n_pos <- sum(df_train[[target]] == 1)
+  n_neg <- sum(df_train[[target]] == 0)
+  scale_pos_weight <- n_neg / n_pos
+  print(scale_pos_weight)
+  
+  params <- list(
+    objective = "binary:logistic",
+    eta = parameters$eta,
+    gamma = parameters$gamma,
+    max_depth = parameters$max_depth,
+    min_child_weight = parameters$min_child_weight,
+    subsample = parameters$subsample,
+    colsample_bytree = parameters$colsample_bytree,
+    eval_metric = "auc",
+    scale_pos_weight = scale_pos_weight
+  )
+  
+  model <- xgb.train(
+    params = params,
+    data = dtrain,
+    nrounds = 1000,
+    watchlist = list(val = dval),
+    print_every_n = 50,
+    early_stopping_rounds = 30
+  )
+  
+  preds <- predict(model, dval)
+  auc <- auc(df_val[[target]], preds)
+  best_iter <- model$best_iteration
+  
+  return(list(auc = auc, best_iter = best_iter))
+}
+```
+
+```{r final eval function}
+xgboost_model <- function(features, parameters, final_nrounds) {
+  df_train_full[[target]] <- as.numeric(df_train_full[[target]] == "failed")
+  df_test[[target]] <- as.numeric(df_test[[target]] == "failed")
+  
+  dtrain <- xgb.DMatrix(data = as.matrix(df_train_full[, features]), label = df_train_full[[target]])
+  dtest <- xgb.DMatrix(data = as.matrix(df_test[, features]), label = df_test[[target]])
+  
+  # Handling class imbalance
+  n_pos <- sum(df_train_full[[target]] == 1)
+  n_neg <- sum(df_train_full[[target]] == 0)
+  scale_pos_weight <- n_neg / n_pos
+  
+  print(scale_pos_weight)
+    
+  params <- list(
+    objective = "binary:logistic",
+    eta = parameters$eta,
+    gamma = parameters$gamma,
+    max_depth = parameters$max_depth,
+    min_child_weight = parameters$min_child_weight,
+    subsample = parameters$subsample,
+    colsample_bytree = parameters$colsample_bytree,
+    eval_metric = "auc",
+    scale_pos_weight = scale_pos_weight
+  )
+    
+  model <- xgb.train(
+    params = params,
+    data = dtrain,
+    nrounds = final_nrounds
+  )
+  
+  preds <- predict(model, dtest)
+  auc_test <- auc(df_test[[target]], preds)
+  
+  recall_test <- sum(preds == 1 & df_test[[target]] == 1) / sum(df_test[[target]] == 1)
+  
+  roc_test <- roc(df_test[[target]], preds)
+
+  return(list(auc = auc_test, roc = roc_test, recall = recall_test))
+}
+```
+
+Random search for parameter tuning
+```{r}
+results_base <- list()
+results_1yr <- list()
+results_2yr <- list()
+results_3yr <- list()
+
+for (i in 1:200) {
+  parameters <- random_params()
+  
+  result0 <- xgboost_model_1fold(base_features, parameters)
+  result1 <- xgboost_model_1fold(lag_1yr_feats, parameters)
+  result2 <- xgboost_model_1fold(lag_2yr_feats, parameters)
+  result3 <- xgboost_model_1fold(lag_3yr_feats, parameters)
+  
+  results_base[[i]] <- list(parameters = parameters, auc = result0$auc, best_iter = result0$best_iter)
+  
+  results_1yr[[i]] <- list(parameters = parameters, auc = result1$auc, best_iter = result1$best_iter)
+  
+  results_2yr[[i]] <- list(parameters = parameters, auc = result2$auc, best_iter = result2$best_iter)
+  
+  results_3yr[[i]] <- list(parameters = parameters, auc = result3$auc, best_iter = result3$best_iter)
+}
+```
+Base features best validation results
+```{r}
+auc_vals <- sapply(results_base, function(res) res$auc)
+
+
+best_idx <- which.max(auc_vals)
+best_auc_0 <- results_base[[best_idx]]$auc
+best_iter_0 <- results_base[[best_idx]]$best_iter
+best_params_0 <- results_base[[best_idx]]$parameters
+
+print(best_auc_0)
+```
+```{r}
+auc_vals <- sapply(results_1yr, function(res) res$auc)
+
+best_idx <- which.max(auc_vals)
+best_auc_1 <- results_1yr[[best_idx]]$auc
+best_iter_1 <- results_1yr[[best_idx]]$best_iter
+best_params_1 <- results_1yr[[best_idx]]$parameters
+
+print(best_auc_1)
+```
+```{r}
+auc_vals <- sapply(results_2yr, function(res) res$auc)
+
+best_idx <- which.max(auc_vals)
+best_auc_2 <- results_2yr[[best_idx]]$auc
+best_iter_2 <- results_2yr[[best_idx]]$best_iter
+best_params_2 <- results_2yr[[best_idx]]$parameters
+
+print(best_auc_2)
+```
+```{r}
+auc_vals <- sapply(results_3yr, function(res) res$auc)
+
+best_idx <- which.max(auc_vals)
+best_auc_3 <- results_3yr[[best_idx]]$auc
+best_iter_3 <- results_3yr[[best_idx]]$best_iter
+best_params_3 <- results_3yr[[best_idx]]$parameters
+
+print(best_auc_3)
+```
+Finally...
+```{r}
+final_results <- xgboost_model(base_features, best_params_0, best_iter_0)
+```
+
+```{r}
+final_results$auc
+```
+
+```{r}
+final_results_1 <- xgboost_model(lag_1yr_feats, best_params_1, best_iter_1)
+```
+
+```{r}
+final_results_1$auc
+```
+
+```{r}
+final_results_2 <- xgboost_model(lag_2yr_feats, best_params_2, best_iter_2)
+```
+
+```{r}
+final_results_2$auc
+```
+
+```{r}
+final_results_3 <- xgboost_model(lag_3yr_feats, best_params_3, best_iter_3)
+```
+
+```{r}
+final_results_3$auc
+```
+
+
+```{r}
+print(best_params_0)
+print(best_params_1)
+print(best_params_2)
+print(best_params_3)
+```

@@ -1,0 +1,79 @@
+---
+title: "Untitled"
+author: "Tomi"
+date: "2025-11-04"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+train_data <- read.csv("../Data/Final_traindata/df_train_full.csv")
+test_data <- read.csv("../Data/Final_traindata/df_test.csv")
+```
+
+Features/label setup
+```{r}
+x <- paste0("X", 1:15)
+base_features <- c(x, "X17", "X18")
+
+lag_1yr_feats <- c(base_features, paste0(base_features, "_1yr"))
+lag_2yr_feats <- c(lag_1yr_feats, paste0(base_features, "_2yr"))
+lag_3yr_feats <- c(lag_2yr_feats, paste0(base_features, "_3yr"))
+
+target <- "status_label_1yr"
+```
+
+The "best" parameters and features found
+```{r}
+features <- lag_2yr_feats
+
+eta <- 0.1703463
+gamma <- 1.207474
+max_depth <- 3
+min_child_weight <- 3
+subsample <- 0.9568904
+colsample_bytree <- 0.5001273
+
+iter <- 18
+```
+
+Modelling with xgboost using the "best" parameters found from rolling windows cross-validation
+```{r}
+set.seed(347)
+
+# Ensuring the labels are numeric
+train_data[[target]] <- as.numeric(train_data[[target]] == "failed")
+test_data[[target]] <- as.numeric(test_data[[target]] == "failed")
+
+# Handling class imbalance
+n_pos <- sum(train_data[[target]] == 1)
+n_neg <- sum(train_data[[target]] == 0)
+scale_pos_weight <- n_neg / n_pos
+
+dtrain <- xgb.DMatrix(data = as.matrix(train_data[, features]), label = train_data[[target]])
+dtest <- xgb.DMatrix(data = as.matrix(test_data[, features]), label = test_data[[target]])
+
+params <- list(
+  objective = "binary:logistic",
+  eta = eta,
+  gamma = gamma,
+  max_depth = max_depth,
+  min_child_weight = min_child_weight,
+  subsample = subsample,
+  colsample_bytree = colsample_bytree,
+  eval_metric = "auc",
+  scale_pos_weight = scale_pos_weight
+)
+
+xgb_model <- xgb.train(params = params, data = dtrain, nrounds = iter)
+
+preds <- predict(model, dtest)
+
+auc <- auc(df_test[[target]], preds)
+roc <- roc(df_test[[target]], preds)
+
+print(cat("AUC Score: ", auc))
+```

@@ -1,0 +1,328 @@
+---
+title: "Untitled"
+output: html_document
+date: "2025-11-02"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r echo=FALSE}
+library(xgboost)
+library(dplyr)
+library(pROC)
+library(ggplot2)
+library(caret)
+```
+Loading required datasets
+```{r}
+df <- read.csv("../Data/Final_traindata/df_train_full.csv")
+df_test <- read.csv("../Data/Final_traindata/df_test.csv")
+```
+
+Features/label setup
+```{r}
+x <- paste0("X", 1:15)
+base_features <- c(x, "X17", "X18")
+
+lag_1yr_feats <- c(base_features, paste0(base_features, "_1yr"))
+lag_2yr_feats <- c(lag_1yr_feats, paste0(base_features, "_2yr"))
+lag_3yr_feats <- c(lag_2yr_feats, paste0(base_features, "_3yr"))
+
+target <- "status_label_1yr"
+
+first_year <- 2002
+last_year <- 2013
+
+# for rolling window CV
+
+val_years <- c((first_year+1):last_year)
+print(val_years)
+
+set.seed(123)
+```
+
+Generating random parameters
+```{r}
+random_params <- function() {
+  return(list(
+    eta = runif(1, 0.01, 0.3),
+    max_depth = sample(3:8, 1),
+    subsample = runif(1, 0.7, 1.0),
+    colsample_bytree = runif(1, 0.5, 1.0),
+    min_child_weight = sample(1:5, 1),
+    gamma = runif(1, 0, 5)
+  ))
+}
+```
+
+Defining the functions for training/evaluation
+```{r cross-validation}
+xgboost_rolling_cv <- function(features, parameters) {
+  # Converting target variable to numeric
+  df[[target]] <- as.numeric(df[[target]] == "failed")
+  
+  fold_aucs <- data.frame()
+  
+  company_col <- "company_name"
+  
+  for (val_year in val_years) {
+    
+    df_train <- df %>% filter(year < val_year)
+    df_val <- df %>% filter(year == val_year)
+    
+    # Removing companies that appear on the validation set
+    val_companies <- unique(df_val[[company_col]])
+    df_train <- subset(df_train, !(df_train[[company_col]] %in% val_companies))
+    
+    dtrain <- xgb.DMatrix(data = as.matrix(df_train[, features]), label = df_train[[target]])
+    dval <- xgb.DMatrix(data = as.matrix(df_val[, features]), label = df_val[[target]])
+    
+    # Handling class imbalance
+    n_pos <- sum(df_train[[target]] == 1)
+    n_neg <- sum(df_train[[target]] == 0)
+    scale_pos_weight <- n_neg / n_pos
+    print(scale_pos_weight)
+    
+    params <- list(
+      objective = "binary:logistic",
+      eta = parameters$eta,
+      gamma = parameters$gamma,
+      max_depth = parameters$max_depth,
+      min_child_weight = parameters$min_child_weight,
+      subsample = parameters$subsample,
+      colsample_bytree = parameters$colsample_bytree,
+      eval_metric = "auc",
+      scale_pos_weight = scale_pos_weight
+    )
+    
+    model <- xgb.train(
+      params = params,
+      data = dtrain,
+      nrounds = 1000,
+      watchlist = list(val = dval),
+      print_every_n = 50,
+      early_stopping_rounds = 30
+    )
+    
+    preds <- predict(model, dval)
+    auc_val <- auc(df_val[[target]], preds)
+    best_iter <- model$best_iteration
+    
+    
+    fold_aucs <- rbind(fold_aucs, data.frame(val_year = val_year, auc = auc_val, best_iter = best_iter))
+  }
+  
+  return(list(
+    mean_auc = mean(fold_aucs$auc),
+    sd_auc = sd(fold_aucs$auc),
+    fold_aucs = fold_aucs
+  ))
+}
+```
+
+```{r final eval function}
+xgboost_train_test <- function(features, parameters, final_nrounds) {
+  df[[target]] <- as.numeric(df[[target]] == "failed")
+  df_test[[target]] <- as.numeric(df_test[[target]] == "failed")
+  
+  dtrain <- xgb.DMatrix(data = as.matrix(df[, features]), label = df[[target]])
+  dtest <- xgb.DMatrix(data = as.matrix(df_test[, features]), label = df_test[[target]])
+  
+  # Handling class imbalance
+  n_pos <- sum(df[[target]] == 1)
+  n_neg <- sum(df[[target]] == 0)
+  scale_pos_weight <- n_neg / n_pos
+  
+  print(scale_pos_weight)
+  
+  params <- list(
+    objective = "binary:logistic",
+    eta = parameters$eta,
+    gamma = parameters$gamma,
+    max_depth = parameters$max_depth,
+    min_child_weight = 1,
+    subsample = parameters$subsample,
+    colsample_bytree = parameters$colsample_bytree,
+    eval_metric = "auc",
+    scale_pos_weight = scale_pos_weight
+  )
+    
+  model <- xgb.train(
+    params = params,
+    data = dtrain,
+    nrounds = final_nrounds
+  )
+  
+  preds <- predict(model, dtest)
+  auc_test <- auc(df_test[[target]], preds)
+  roc_test <- roc(df_test[[target]], preds)
+  return(list(auc = auc_test, roc = roc_test))
+}
+```
+
+Random search for parameter tuning
+```{r}
+results_base <- list()
+results_1yr <- list()
+results_2yr <- list()
+results_3yr <- list()
+
+for (i in 1:500) {
+  parameters <- random_params()
+  
+  result0 <- xgboost_rolling_cv(base_features, parameters)
+  result1 <- xgboost_rolling_cv(lag_1yr_feats, parameters)
+  result2 <- xgboost_rolling_cv(lag_2yr_feats, parameters)
+  result3 <- xgboost_rolling_cv(lag_3yr_feats, parameters)
+  
+  results_base[[i]] <- list(parameters = parameters, mean_auc = result0$mean_auc, sd_auc = result0$sd_auc, folds = result0$fold_aucs)
+  
+  results_1yr[[i]] <- list(parameters = parameters, mean_auc = result1$mean_auc, sd_auc = result1$sd_auc, folds = result1$fold_aucs)
+  
+  results_2yr[[i]] <- list(parameters = parameters, mean_auc = result2$mean_auc, sd_auc = result2$sd_auc, folds = result2$fold_aucs)
+  
+  results_3yr[[i]] <- list(parameters = parameters, mean_auc = result3$mean_auc, sd_auc = result3$sd_auc, folds = result3$fold_aucs)
+}
+```
+
+Optimal set of hyper parameters for base features only
+```{r}
+results_summary0 <- bind_rows(lapply(seq_along(results_base), function(i){
+  cbind(
+    iteration = i,
+    as.data.frame(results_base[[i]]$parameters),
+    mean_auc = results_base[[i]]$mean_auc,
+    sd_auc = results_base[[i]]$sd_auc
+  )
+}))
+
+# Display top results by mean AUC, showing the parameters used
+results_summary0 <- results_summary0 %>% arrange(desc(mean_auc))
+print(results_summary0[1:50, ])
+```
+```{r}
+rank <- 1
+idx <- results_summary0[rank, "iteration"]
+
+auc_val_0 <- results_base[[idx]]$mean_auc
+best_params_0 <- results_base[[idx]]$parameters
+best_fold_aucs_0 <- results_base[[idx]]$folds
+
+print(auc_val_0)
+```
+
+
+Optimal set of parameters for base + 1yr lag features
+```{r}
+results_summary1 <- bind_rows(lapply(seq_along(results_1yr), function(i){
+  cbind(
+    iteration = i,
+    as.data.frame(results_1yr[[i]]$parameters),
+    mean_auc = results_1yr[[i]]$mean_auc,
+    sd_auc = results_1yr[[i]]$sd_auc
+  )
+}))
+
+# Display top results by mean AUC, showing the parameters used
+results_summary1 <- results_summary1 %>% arrange(desc(mean_auc))
+print(results_summary1[1:50, ])
+```
+```{r}
+rank <- 2
+idx <- results_summary1[rank, "iteration"]
+
+auc_val_1 <- results_1yr[[idx]]$mean_auc
+best_params_1 <- results_1yr[[idx]]$parameters
+best_fold_aucs_1 <- results_1yr[[idx]]$folds
+
+print(auc_val_1)
+```
+
+Base + 1yr lag + 2yr lag features
+```{r}
+results_summary2 <- bind_rows(lapply(seq_along(results_2yr), function(i){
+  cbind(
+    iteration = i,
+    as.data.frame(results_2yr[[i]]$parameters),
+    mean_auc = results_2yr[[i]]$mean_auc,
+    sd_auc = results_2yr[[i]]$sd_auc
+  )
+}))
+
+# Display top results by mean AUC, showing the parameters used
+results_summary2 <- results_summary2 %>% arrange(desc(mean_auc))
+print(results_summary2[1:10, ])
+```
+
+```{r}
+rank <- 2 # similar to highest mean_auc but lower standard deviation
+idx <- results_summary2[rank, "iteration"]
+
+auc_val_2 <- results_2yr[[idx]]$mean_auc
+best_params_2 <- results_2yr[[idx]]$parameters
+best_fold_aucs_2 <- results_2yr[[idx]]$folds
+
+print(auc_val_2)
+```
+
+All features
+```{r}
+results_summary3 <- bind_rows(lapply(seq_along(results_3yr), function(i){
+  cbind(
+    iteration = i,
+    as.data.frame(results_3yr[[i]]$parameters),
+    mean_auc = results_3yr[[i]]$mean_auc,
+    sd_auc = results_3yr[[i]]$sd_auc
+  )
+}))
+
+# Display top results by mean AUC, showing the parameters used
+results_summary3 <- results_summary3 %>% arrange(desc(mean_auc))
+print(results_summary3[1:50, ])
+```
+```{r}
+rank <- 3 #other option is 1 - will compare both
+idx <- results_summary3[rank, "iteration"]
+
+auc_val_3 <- results_3yr[[idx]]$mean_auc
+best_params_3 <- results_3yr[[idx]]$parameters
+best_fold_aucs_3 <- results_3yr[[idx]]$folds
+
+print(auc_val_3)
+```
+
+
+Choose best overall model and then train with train+validation set and evaluate on test set
+```{r}
+final_nrounds0 <- median(best_fold_aucs_0$best_iter)
+final_results_base <- xgboost_train_test(base_features, best_params_0, final_nrounds0)
+```
+
+```{r}
+final_results_base$auc
+```
+
+```{r}
+final_nrounds1 <- median(best_fold_aucs_1$best_iter)
+final_results_1yr <- xgboost_train_test(lag_1yr_feats, best_params_1, final_nrounds1)
+final_results_1yr$auc
+```
+```{r}
+final_nrounds2 <- median(best_fold_aucs_2$best_iter)
+final_results_2yr <- xgboost_train_test(lag_2yr_feats, best_params_2, final_nrounds2)
+final_results_2yr$auc
+```
+
+```{r}
+final_nrounds3 <- median(best_fold_aucs_3$best_iter)
+final_results_3yr <- xgboost_train_test(lag_3yr_feats, best_params_3, final_nrounds3)
+final_results_3yr$auc
+```
+Best parameters
+```{r}
+best_params <- list(best_params_2, iter = final_nrounds2)
+print(best_params)
+```
+
