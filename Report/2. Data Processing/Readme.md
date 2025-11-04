@@ -37,10 +37,12 @@ By introducing lag variables, we introduce NAs as a company e.g. at the beginnin
 
 **Exploratory Data Analysis and Train
 
-In plotting the distribution of our features, we noticed them being heavily skewed. We also noticed highly correlated variables i.e. X16 which was identical to another feature leading to its removal given its redundancy. This explorationa and our subsequent actions is exploerd in more detail in the EDA code. 
+In plotting the distribution of our features, we noticed them being heavily skewed. We also noticed highly correlated variables i.e. X16 which was identical to another feature leading to its removal given its redundancy. This explorationa and our subsequent actions is explored in more detail in the EDA code. 
 
 
 **EDA and Splitting the Data** 
+
+Our report EDA file and Data 
 
 
 
