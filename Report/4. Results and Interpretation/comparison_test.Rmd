@@ -1,0 +1,237 @@
+---
+title: "Untitled"
+output: html_document
+date: "2025-11-04"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r}
+library(pROC)
+library(car)
+library(glmnet)
+library(logistf)
+library(e1071)   
+library(pROC)    
+library(caret)   
+library(ROSE)
+library(dplyr)
+library(smotefamily)
+library(PRROC)
+library(xgboost)
+library(tidyverse)
+library(randomForest)
+```
+feature to include
+```{r}
+feature_lag0 = c('X1','X2','X3','X4','X5','X6','X7','X8','X9','X10','X11','X12','X13','X14','X15','X17','X18')
+feature_lag1 = c(feature_lag0, 'X1_1yr','X2_1yr','X3_1yr','X4_1yr','X5_1yr','X6_1yr','X7_1yr','X8_1yr','X9_1yr','X10_1yr','X11_1yr','X12_1yr','X13_1yr','X14_1yr','X15_1yr','X17_1yr','X18_1yr')
+feature_lag2 = c(feature_lag1, 'X1_2yr','X2_2yr','X3_2yr','X4_2yr','X5_2yr','X6_2yr','X7_2yr','X8_2yr','X9_2yr','X10_2yr','X11_2yr','X12_2yr','X13_2yr','X14_2yr','X15_2yr','X17_2yr','X18_2yr')
+feature_lag3 = c(feature_lag2, 'X1_3yr','X2_3yr','X3_3yr','X4_3yr','X5_3yr','X6_3yr','X7_3yr','X8_3yr','X9_3yr','X10_3yr','X11_3yr','X12_3yr','X13_3yr','X14_3yr','X15_3yr','X17_3yr','X18_3yr')
+
+
+```
+
+```{r}
+set.seed(1234)
+df_train_noscale <- read.csv('C:\\Users\\railt\\DataScienceFanClub\\Data\\Final_traindata\\df_train_full.csv')
+df_train_log_scale <- read.csv('C:\\Users\\railt\\DataScienceFanClub\\Data\\Final_traindata\\df_train_log_scaled_full.csv')
+df_train_log_noscale <- read.csv('C:\\Users\\railt\\DataScienceFanClub\\Data\\Final_traindata\\df_train_log_full.csv')
+
+
+df_test_noscale <- read.csv('C:\\Users\\railt\\DataScienceFanClub\\Data\\Final_traindata\\df_test.csv')
+df_test_log_scale <- read.csv('C:\\Users\\railt\\DataScienceFanClub\\Data\\Final_traindata\\df_test_log_scaled.csv')
+df_test_log_noscale <- read.csv('C:\\Users\\railt\\DataScienceFanClub\\Data\\Final_traindata\\df_test_log.csv')
+
+#categorical feature for the train and test set
+y_train <- factor(df_train_noscale[,'status_label_1yr'], levels = c('alive','failed'))
+y_test <- factor(df_test_noscale[,'status_label_1yr'], levels = c('alive','failed'))
+
+#smote for algorithm that use smote
+train_smote <- SMOTE(df_train_log_scale[,feature_lag3], y_train)
+
+df_train_log_scale_sm <- train_smote$data
+colnames(df_train_log_scale_sm)[ncol(df_train_log_scale_sm)] <- 'status_label_1yr'
+x_train_sm <- df_train_log_scale_sm[, -ncol(df_train_log_scale_sm)]
+y_train_sm <- factor(df_train_log_scale_sm$status_label_1yr)
+
+```
+
+```{r}
+#train/test set for SVM
+x_train_svm <- x_train_sm[, feature_lag0]
+x_test_svm <- df_test_log_scale[, feature_lag0]
+
+#train/test set for KNN 
+x_train_knn <- df_train_log_scale[, feature_lag2]
+x_test_knn <- df_test_log_scale[, feature_lag2]
+
+#train/test set for Logistic Regression
+x_train_logist <- df_train_log_scale[, feature_lag0]
+x_test_logist <- df_test_log_scale[, feature_lag0]
+
+train_logist <- data.frame(x_train_logist, y_train)
+test_logist <- data.frame(x_test_logist, y_test)
+
+#train/test set for Xgboost
+x_train_xgb <- df_train_noscale[, feature_lag2]
+x_test_xgb <- df_test_noscale[, feature_lag2]
+
+train_xgb <- data.frame(x_train_xgb, y_train)
+test_xgb <- data.frame(x_test_xgb, y_test)
+
+
+train_xgb[['y_train']] <- as.numeric(train_xgb[['y_train']] == "failed")
+test_xgb[['y_train']] <- as.numeric(test_xgb[['y_test']] == 'failed')
+
+dtrain <- xgb.DMatrix(data = as.matrix(train_xgb[, feature_lag2]), label = train_xgb[['y_train']])
+dtest <- xgb.DMatrix(data = as.matrix(test_xgb[, feature_lag2]), label = test_xgb[['y_test']])
+
+#train/test set for Random Forest
+x_train_rf <- df_train_noscale[,feature_lag3]
+x_test_rf <- df_test_noscale[,feature_lag3]
+
+train_rf <- data.frame(x_train_rf, y_train)
+test_rf <- data.frame(x_test_rf, y_test)
+```
+
+training
+```{r}
+set.seed(5555)
+#training svm model
+svm_model <- svm(
+      x = x_train_svm,
+      y = y_train_sm,
+      kernel = 'radial',
+      cost   = 0.1,
+      gamma  = 0.01,
+      probability = TRUE
+    )
+
+#training knn model
+
+ctr_2yr <- trainControl(method = "none",
+                    sampling = "up")
+```
+```{r}
+knn_model <- train(
+  x = x_train_knn, 
+  y = y_train,
+  method = "knn",
+  tuneGrid = data.frame(k = 47),
+  trControl = ctr_2yr
+)
+
+#training logistic regression model
+```
+
+```{r}
+logit_model <- glm(y_train ~ ., data = train_logist, family = binomial)
+
+#training for Xgboost
+n_pos <- sum(train_xgb[['y_train']] == 1)
+n_neg <- sum(train_xgb[['y_train']] == 0)
+scale_pos_weight <- n_neg / n_pos
+
+params <- list(
+  objective = "binary:logistic",
+  eta = 0.1703463,
+  gamma = 1.207474,
+  max_depth = 3,
+  min_child_weight = 3,
+  subsample = 0.9568904,
+  colsample_bytree = 0.5001273,
+  eval_metric = "auc",
+  scale_pos_weight = scale_pos_weight
+)
+
+xgb_model <- xgb.train(params = params, data = dtrain, nrounds = 18)
+
+#training for random forest
+
+rf_model <- randomForest(
+    formula = as.formula(paste('y_train', "~ .")),
+    data = train_rf,
+    ntree = 500,
+    mtry = sqrt(ncol(train_rf)-1),
+    importance = TRUE,
+    strata = train_rf[['y_train']],
+    sampsize = rep(min(table(train_rf[['y_train']])), 2)
+  )
+```
+
+testing on test data
+```{r}
+#testing svm
+svm_pred <- predict(svm_model, x_test_svm, probability = TRUE)
+svm_class <- factor(svm_pred, levels = levels(y_test))
+
+#testing knn
+knn_pred <- predict(knn_model, x_test_knn, type = 'raw')
+knn_prob <- predict(knn_model, x_test_knn, type ='prob')
+#testing logit
+logit_pred = predict(logit_model, test_logist, type ="response")
+logit_class <- factor(ifelse(logit_pred > 0.5, "failed", "alive"), levels = c("alive","failed"))
+#testing xgboost
+xgb_pred = predict(xgb_model, dtest)
+xgb_class <- factor(ifelse(xgb_pred > 0.5, "failed", "alive"), levels = c("alive","failed"))
+#testing random forest
+rf_pred = predict(rf_model, test_rf)
+rf_prob = predict(rf_model, test_rf, type = 'prob')
+```
+
+performance comparison
+```{r}
+(confusionMatrix(svm_pred, y_test, positive="failed"))
+(confusionMatrix(knn_pred, y_test, positive="failed"))
+(confusionMatrix(logit_class, y_test, positive="failed"))
+(confusionMatrix(xgb_class, y_test, positive="failed"))
+(confusionMatrix(rf_pred, y_test, positive="failed"))
+```
+
+```{r}
+svm_prob <- attr(svm_pred, "probabilities")[,'failed']
+roc_svm <- roc(y_test, svm_prob)
+roc_knn <- roc(y_test, knn_prob[,'failed'])
+roc_logit <- roc(test_logist$y_test, logit_pred)
+roc_xgb <- roc(y_test, xgb_pred)
+roc_rf <- roc(test_rf$y_test, rf_prob[,'alive']) #the labeled for failed and alive switch for rf_model
+```
+```{r}
+auc_values <- c(
+  Logistic = auc(roc_logit),
+  SVM = auc(roc_svm),
+  KNN = auc(roc_knn),
+  XGBoost = auc(roc_xgb),
+  RandomForest = auc(roc_rf)
+)
+
+print(round(auc_values, 4))
+```
+```{r}
+roc_list <- list(Logistic=roc_logit, SVM=roc_svm, KNN=roc_knn, XGBoost=roc_xgb, RandomForest=roc_rf)
+roc_df <- do.call(rbind, lapply(names(roc_list), function(nm) {
+  data.frame(
+    Model = nm,
+    FPR = 1 - roc_list[[nm]]$specificities,
+    TPR = roc_list[[nm]]$sensitivities
+  )
+}))
+
+ggplot(roc_df, aes(x = FPR, y = TPR, color = Model)) +
+  geom_line(size = 1) +
+  geom_abline(slope = 1, intercept = 0, linetype = 3) +
+  labs(title = "ROC Curve Comparison", x = "False Positive Rate", y = "True Positive Rate") +
+  theme_minimal(base_size = 13)
+```
+
+```{r}
+
+
+```
+
+```{r}
+
+
+```
