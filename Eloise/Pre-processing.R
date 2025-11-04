@@ -133,7 +133,7 @@ data_with_lag <-  status_label_change %>%
 
 # Rearrange data 
 
-data_full <- data_with_lag %>% 
+data_full <- data_with_lag %>%z
   select(-status_label, -first_year_rec, -last_year_rec, -number_years_rec) %>%
   relocate(status_label_1yr, .after = year) %>%
   relocate(status_label_2yr, .after = status_label_1yr) %>%

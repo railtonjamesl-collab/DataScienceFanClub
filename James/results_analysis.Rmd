@@ -27,6 +27,17 @@ results_lag1 <- read.csv("C:\\Users\\railt\\DataScienceFanClub\\James\\results_l
 results_lag2 <- read.csv("C:\\Users\\railt\\DataScienceFanClub\\James\\results_lag2.csv")
 results_lag3 <- read.csv("C:\\Users\\railt\\DataScienceFanClub\\James\\results_lag3.csv")
 
+res_nolag <- results_nolag  %>% mutate(lag = "lag0 (no lag)")
+res_lag1  <- results_lag1   %>% mutate(lag = "lag1")
+res_lag2  <- results_lag2   %>% mutate(lag = "lag2")
+res_lag3  <- results_lag3   %>% mutate(lag = "lag3")
+
+all_res <- bind_rows(res_nolag, res_lag1, res_lag2, res_lag3) %>%
+  # order facets nicely
+  mutate(lag = factor(lag, levels = c("lag0 (no lag)", "lag1", "lag2", "lag3"))) %>%
+  # treat gamma as a label for plotting (keeps exact numeric values)
+  mutate(gamma_lab = as.factor(signif(gamma, 3)))
+
 ```
 
 
