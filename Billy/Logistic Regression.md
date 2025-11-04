@@ -6,7 +6,7 @@ Logistic regression is a generalised linear model used to predict the binary out
 
 It works well with our dataset, in particular the flexibility with regards to what questions may be asked. Furthermore, many financial variables are continuous which makes it easier to use logistic regression. Given the large sample size of our data then logistic regression works well but may have bias, if so then there are multiple methods to help us with this fact [2], [3], [4].
 
-Given the temporal nature of our dataset, it was important we split the data to minimise potential data leakage. This heavily impacts logistic regression does impact the independence assumption. Therefore, our results are not fully representative of what a correctly applied logisitc regression model would output. The incorportaion of lag variables nullifies the violation slightly, yet with more time it would be beneficial to fully explore ways to truly rectify the violation.
+Given the temporal nature of our dataset, it was important we split the data to minimise potential data leakage. This heavily impacts logistic regression does impact the independence assumption. Therefore, our results are not fully representative of what a correctly applied logistic regression model would output. The incorportaion of lag variables nullifies the violation slightly, yet with more time it would be beneficial to fully explore ways to truly rectify the violation.
 
 Now that we have discussed many of the issues encountered, the rest of this summary is in regards to the individual section.
 
