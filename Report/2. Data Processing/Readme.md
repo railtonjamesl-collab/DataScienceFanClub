@@ -38,7 +38,7 @@ By introducing lag variables, we introduce NAs as a company e.g. at the beginnin
 
 **EDA and splitting the data in to our training, validation and test splits** 
 
-Our report EDA file and completedataprocess files outlines in full detail the steps we took to plot the different features, how we scaled them and the full steps we took to process the data before 
+Our _report EDA_ file and _completedataprocess_ files outlines in full detail the steps we took to plot the different features, how we scaled them and the full steps we took to process the data before 
 running our different models. 
 
 
