@@ -36,7 +36,7 @@ Lag variables gives our models information from previous to train on as we inves
 By introducing lag variables, we introduce NAs as a company e.g. at the beginning of the dataset doesn't have previous years to refer to. Hence, we remove accordingly.
 
 
-**EDA and Splitting the Data** 
+**EDA and splitting the data in to our training, validation and test splits** 
 
 Our report EDA file and completedataprocess files outlines in full detail the steps we took to plot the different features, how we scaled them and the full steps we took to process the data before 
 running our different models. 
