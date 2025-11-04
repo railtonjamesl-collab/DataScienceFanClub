@@ -68,8 +68,8 @@ x_train_knn <- df_train_log_scale[, feature_lag2]
 x_test_knn <- df_test_log_scale[, feature_lag2]
 
 #train/test set for Logistic Regression
-x_train_logist <- df_train_log_noscale[, feature_lag0]
-x_test_logist <- df_test_log_noscale[, feature_lag0]
+x_train_logist <- df_train_log_scale[, feature_lag0]
+x_test_logist <- df_test_log_scale[, feature_lag0]
 
 train_logist <- data.frame(x_train_logist, y_train)
 test_logist <- data.frame(x_test_logist, y_test)
@@ -164,12 +164,12 @@ rf_model <- randomForest(
 testing on test data
 ```{r}
 #testing svm
-#svm_pred <- predict(svm_model, x_test_svm, decision.values = TRUE, probability = TRUE)
-#svm_pred <- factor(svm_pred, levels = levels(y_test))
+svm_pred <- predict(svm_model, x_test_svm, probability = TRUE)
+svm_class <- factor(svm_pred, levels = levels(y_test))
 
 #testing knn
-#knn_pred <- predict(knn_model, x_test_knn, type = "raw")
-
+knn_pred <- predict(knn_model, x_test_knn, type = 'raw')
+knn_prob <- predict(knn_model, x_test_knn, type ='prob')
 #testing logit
 logit_pred = predict(logit_model, test_logist, type ="response")
 logit_class <- factor(ifelse(logit_pred > 0.5, "failed", "alive"), levels = c("alive","failed"))
@@ -178,6 +178,7 @@ xgb_pred = predict(xgb_model, dtest)
 xgb_class <- factor(ifelse(xgb_pred > 0.5, "failed", "alive"), levels = c("alive","failed"))
 #testing random forest
 rf_pred = predict(rf_model, test_rf)
+rf_prob = predict(rf_model, test_rf, type = 'prob')
 ```
 
 performance comparison
@@ -187,6 +188,47 @@ performance comparison
 (confusionMatrix(logit_class, y_test, positive="failed"))
 (confusionMatrix(xgb_class, y_test, positive="failed"))
 (confusionMatrix(rf_pred, y_test, positive="failed"))
+```
+
+```{r}
+svm_prob <- attr(svm_pred, "probabilities")[,'failed']
+roc_svm <- roc(y_test, svm_prob)
+roc_knn <- roc(y_test, knn_prob[,'failed'])
+roc_logit <- roc(test_logist$y_test, logit_pred)
+roc_xgb <- roc(y_test, xgb_pred)
+roc_rf <- roc(test_rf$y_test, rf_prob[,'alive']) #the labeled for failed and alive switch for rf_model
+```
+```{r}
+auc_values <- c(
+  Logistic = auc(roc_logit),
+  SVM = auc(roc_svm),
+  KNN = auc(roc_knn),
+  XGBoost = auc(roc_xgb),
+  RandomForest = auc(roc_rf)
+)
+
+print(round(auc_values, 4))
+```
+```{r}
+roc_list <- list(Logistic=roc_logit, SVM=roc_svm, KNN=roc_knn, XGBoost=roc_xgb, RandomForest=roc_rf)
+roc_df <- do.call(rbind, lapply(names(roc_list), function(nm) {
+  data.frame(
+    Model = nm,
+    FPR = 1 - roc_list[[nm]]$specificities,
+    TPR = roc_list[[nm]]$sensitivities
+  )
+}))
+
+ggplot(roc_df, aes(x = FPR, y = TPR, color = Model)) +
+  geom_line(size = 1) +
+  geom_abline(slope = 1, intercept = 0, linetype = 3) +
+  labs(title = "ROC Curve Comparison", x = "False Positive Rate", y = "True Positive Rate") +
+  theme_minimal(base_size = 13)
+```
+
+```{r}
+
+
 ```
 
 ```{r}
