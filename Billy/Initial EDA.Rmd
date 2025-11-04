@@ -47,7 +47,7 @@ Clearly we have a large imbalance in alive to failed companies. This will have a
 
 ```{r piecharts, fig.height=5, fig.width=15}
 # Raw Total Status Labels
-info1 <- c(sum(dataset$status_label == "alive"), sum(dataset$status_label == "failed"))
+info1 <- c(sum(dataset$status_label_1yr == "alive"), sum(dataset$status_label_1yr == "failed"))
 perc1 <- round(info1 / sum(info1) * 100, 2)
 names1 <- paste(c("alive", "failed"), perc1, "%")
 
@@ -80,7 +80,7 @@ box_x1 + box_x2
 We see that the majority of values lay around 0, yet the outliers completely skew the data making it difficult to gather meaningful information from these graphs alone. These properties are not just present in X1 and X2, but all variables of interest.
 
 ```{r boxplots together, fig.height=4, fig.width=10}
-df_covariates <- dataset[, -c(1:4, 23:76)]
+df_covariates <- dataset[, -c(1:6, 25:78)]
 df_covariates_multplot <- df_covariates[, -c(1,2)] # For this analysis, we are only interested in base features; no lag features
 covariates <- names(df_covariates_multplot)
 boxplots <- list()
