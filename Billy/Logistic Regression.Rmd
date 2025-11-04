@@ -8,6 +8,8 @@ date: "2025-11-03"
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+The full outline for this individual section is on the folder "Billy" and under "Logistic Regression.md" on GitHub.
+
 ```{r required libraries}
 pkgs <- c("pROC", "car", "glmnet", "logistf")
 
@@ -50,12 +52,10 @@ We will now plot our simple logistic regression model, only considering base fea
 ```{r baseline test}
 formula_base <- as.formula(paste("status_label_1yr ~", paste(features, collapse = " + ")))
 model_base <- glm(formula_base, data = train_val, family = binomial())
-vif(model_base)
 summary(model_base)
 ```
 
-There is high collinearity between variables. We will explore this more after our initial testing. 
-
+Recall that from the EDA section that there is high correlation between variables. We will explore this more after our initial testing. 
 
 ```{r loop for models}
 formulas <- list(
@@ -77,7 +77,7 @@ for (i in names(models)) {
 }
 ```
 
-```{r af}
+```{r testing vale}
 glm_probs <- list()
 for (i in names(models)) {
   mod <- models[[i]]
@@ -138,7 +138,9 @@ cat("Recall   :", round(recall, 3), "\n")
 cat("F1 Score :", round(f1_score, 3), "\n")
 ```
 
-We see that the the base model has the highest AUC. We then calculate the confusion matrix and see that we have low precision but high recall. This is because our model is incorrectly flagging many companies as bankrupt when they do in fact not go bankrupt. However, the high AUC score of our Base Model does suggest that it can 
+We see that the the base model has the highest AUC. We then calculate the confusion matrix and see that we have low precision but high recall. This is because our model is incorrectly flagging many companies as bankrupt when they do in fact not go bankrupt. However, the high recall score does mean that the model is correctly flagging companies that are bankrupt as correct, which is the more important application. Thus, with a score of 0.9 our base model can correctly distinguish between bankrupt and non bankrupt companies very well.
+
+It is important to note that even with a high AUC score it does not necessarily mean our model is necessarily excellent. This is because of the low precision score. Therefore, if one were to improve this whilst maintaining a high AUC, then it would lend credence into the belief that the model is truthfully "excellent".
 
 We now extend our findings by removing all highly correlated variables. We choose said variables by the correlation analysis done in the EDA section of the report.
 
@@ -212,7 +214,33 @@ best_model_name_new <- auc_df_new$Model[best_index_new]
 print(best_model_name_new)
 ```
 
-Our AUC has slightly improved. For further study, attempted to weight variables to counter act the imbalance class size in the dataset using the method outlined in King (2001) [1] to determine our weightings. Quickly discovered this method was not applicable. Attempt to use Firth logit [2], LASSO and Elastic Net [3].
+```{r new accuracy}
+thresh_new <- coords(roc_list_new[[1]], "best", ret = "threshold")
+glm.pred_new <- ifelse(glm_probs_new[[1]] > thresh_new$threshold, 1, 0)
+actual_new <- test_val$status_label_1yr
+
+cm <- table(Predicted = glm.pred_new, Actual = actual_new)
+cm
+
+TP <- cm[2, 2]  
+TN <- cm[1, 1]  
+FP <- cm[2, 1]  
+FN <- cm[1, 2]
+
+accuracy  <- (TP + TN) / sum(cm)
+precision <- TP / (TP + FP)
+recall    <- TP / (TP + FN)
+f1_score  <- 2 * precision * recall / (precision + recall)
+
+cat("Accuracy :", round(accuracy, 3), "\n")
+cat("Precision:", round(precision, 3), "\n")
+cat("Recall   :", round(recall, 3), "\n")
+cat("F1 Score :", round(f1_score, 3), "\n")
+```
+
+Our AUC has slightly improved, paired with other metrics such as Recall. However, precision has once again fallen, meaning even though we have a better AUC we are flagging more companies as bankrupt when they are not bankrupt given the removal of variables. 
+
+For further study, I attempted to weight variables to counter act the imbalance class size in the dataset using the method outlined in King (2001) [1] to determine our weightings. However, later discovered this method was not truly applicable given the circumstances. Attempt to use Firth logit (1993) [2], LASSO, Elastic Net and Ridge [3].
 
 ```{r logit firth}
 models_firth <- list()
@@ -259,6 +287,8 @@ best_model_name_firth <- auc_df_firth$Model[best_index_firth]
 print(best_model_name_firth)
 ```
 
+Slightly better results regarding AUC when using Firth. Again, further study could delve into the mathematical reasoning behind such a slight increase.
+
 ```{r LASSO ENET RIDGE}
 y_train <- as.integer(train_val$status_label_1yr == "failed")
 x_train <- model.matrix(~ . - X.1 - X - status_label_1yr - status_label_2yr - status_label_3yr - company_name - year, data = train_val)
@@ -279,7 +309,7 @@ cvfit_ridge$lambda.min
 cvfit_ridge$lambda.1se
 ```
 
-LASSO and Elastic Net AUC is slightly below previous tests. For future study, it is possible to explore the reasons for this.
+LASSO, Elastic Net and Ridge AUC is slightly below previous tests, although all remain high. Future study could inspect these penalisation methods more in depth. 
 
 ```{r final test}
 file_path1 <- c("../Data/Final_traindata/df_train_log_scaled_full.csv", "../Data/Final_traindata/df_test_log_scaled.csv")
@@ -325,7 +355,7 @@ plot(roc_list[[1]], col = 1, lwd = 2, main = "Final ROC Curves by Model")
 legend("bottomright", legend = paste(("Base"), "AUC =", round(roc_objbfinal$auc, 3)), col = 1, lwd = 2, bty = "n")
 ```
 
-```{r final test}
+```{r final test new}
 model_base_final_new <- glm(formulas_new[[1]], data = final_train, family = binomial())
 
 glm_probs_basefinal_new = predict(model_base_final_new, newdata = final_test, type ="response")
@@ -359,8 +389,9 @@ cat("Base Model AUC:", roc_objbfinal_new$auc, "\n")
 plot(roc_list_new[[1]], col = 1, lwd = 2, main = "Final ROC Curves by Model")
 legend("bottomright", legend = paste(("Base"), "AUC =", round(roc_objbfinal_new$auc, 3)), col = 1, lwd = 2, bty = "n")
 ```
+A more in depth conclusion is provided in the aforementioned markdown file on and the report section. We see that the best model in regards to AUC is the base model (no lag features) whilst removing highly correlated variables. To improve this result, one could explore penalisation methods in more depth and/or explore other performance metrics such as PR-AUC which may show that a separate model is "better".
 
 References:
 [1] https://gking.harvard.edu/sites/g/files/omnuum7116/files/gking/file
-
+[2] https://academic.oup.com/biomet/article/80/1/27/228364?login=true
 [3] https://glmnet.stanford.edu/articles/glmnet.html#logistic-regression-family-binomial
