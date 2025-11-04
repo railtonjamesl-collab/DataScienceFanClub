@@ -71,7 +71,7 @@ ggplot(all_res_long, aes(x = cost, y = value, color = gamma_lab, group = gamma_l
   scale_x_log10(breaks = unique(all_res_long$cost)) +
   labs(
     title = "Tuning metrics by Cost and Gamma",
-    x = "Cost (log scale)", y = "Metric value", color = "Gamma"
+    x = "Cost", y = "Metric value", color = "Gamma"
   ) +
   theme_minimal(base_size = 12)
 

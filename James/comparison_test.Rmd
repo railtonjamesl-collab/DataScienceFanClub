@@ -45,8 +45,8 @@ df_test_log_scale <- read.csv('C:\\Users\\railt\\DataScienceFanClub\\Data\\Final
 df_test_log_noscale <- read.csv('C:\\Users\\railt\\DataScienceFanClub\\Data\\Final_traindata\\df_test_log.csv')
 
 #categorical feature for the train and test set
-y_train <- factor(df_train_noscale[,'status_label_1yr'], level = c('alive','failed'))
-y_test <- factor(df_test_noscale[,'status_label_1yr'], level = c('alive','failed'))
+y_train <- factor(df_train_noscale[,'status_label_1yr'], levels = c('alive','failed'))
+y_test <- factor(df_test_noscale[,'status_label_1yr'], levels = c('alive','failed'))
 
 #smote for algorithm that use smote
 train_smote <- SMOTE(df_train_log_scale[,feature_lag3], y_train)
@@ -124,7 +124,9 @@ knn_model <- train(
 )
 
 #training logistic regression model
+```
 
+```{r}
 logit_model <- glm(y_train ~ ., data = train_logist, family = binomial)
 
 #training for Xgboost
@@ -162,23 +164,31 @@ rf_model <- randomForest(
 testing on test data
 ```{r}
 #testing svm
-svm_pred <- predict(svm_model, x_test_svm, decision.values = TRUE, probability = TRUE)
-svm_pred <- factor(svm_pred, levels = levels(y_test))
+#svm_pred <- predict(svm_model, x_test_svm, decision.values = TRUE, probability = TRUE)
+#svm_pred <- factor(svm_pred, levels = levels(y_test))
 
 #testing knn
-knn_pred <- predict(knn_model, x_test_knn, type = "raw")
+#knn_pred <- predict(knn_model, x_test_knn, type = "raw")
 
 #testing logit
 logit_pred = predict(logit_model, test_logist, type ="response")
-
+logit_class <- factor(ifelse(logit_pred > 0.5, "failed", "alive"), levels = c("alive","failed"))
 #testing xgboost
 xgb_pred = predict(xgb_model, dtest)
-
+xgb_class <- factor(ifelse(xgb_pred > 0.5, "failed", "alive"), levels = c("alive","failed"))
 #testing random forest
 rf_pred = predict(rf_model, test_rf)
 ```
 
 performance comparison
+```{r}
+(confusionMatrix(svm_pred, y_test, positive="failed"))
+(confusionMatrix(knn_pred, y_test, positive="failed"))
+(confusionMatrix(logit_class, y_test, positive="failed"))
+(confusionMatrix(xgb_class, y_test, positive="failed"))
+(confusionMatrix(rf_pred, y_test, positive="failed"))
+```
+
 ```{r}
 
 
