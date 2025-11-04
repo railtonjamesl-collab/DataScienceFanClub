@@ -1,0 +1,569 @@
+---
+title: "K Nearest Neighbors"
+output: html_document
+date: "2025-11-03"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+The k-Nearest Neighbors algorithm is a method used for both classification and regression models. It works by finding the k data points in the training set that are closest to a new observation and making predictions based on their values. For classification tasks, the model assigns the most common class among the neighbors, while for regression it takes the average. Because k-NN relies on distance measures such as Euclidean or Manhattan distance, it’s important to scale the features beforehand. The algorithm is non-parametric, meaning it makes no assumptions about the underlying data distribution, and it can capture complex, non-linear relationships. However, it can become computationally expensive with large datasets and may perform poorly when irrelevant features or high-dimensional data are present.
+limitations.
+
+I will develop several k-Nearest Neighbours (k-NN) models using the bankruptcy dataset to predict whether a company is likely to go bankrupt within the following year. I will begin by building a baseline model using the pre-processed data, which includes only variables from the current year of each observation. The model will then be tuned to optimise its predictive performance. Next, I will construct additional models that incorporate lag variables—features from previous years for the same company—to capture potential temporal patterns. Finally, I will evaluate all models and select the best-performing one based primarily on the Area Under the Curve (AUC) metric.
+
+## Libraries 
+
+First the libraries need to be loaded in.
+
+```{r library and wd setup, message=FALSE}
+library(caret)
+library(dplyr)
+library(pROC)
+
+```
+
+## Data
+
+Before developing any models, data needs to be split into 4 different data sets - the base data set, in which each observation includes data for only that year; and n year lag data set in which each observation will include all the data from the base data set plus n years worth of previous data for that particular observation, where n is 1-3. for each of these there will be both a train and a test set.
+
+Each of these train and test sets then needs to be split into a data frame that only includes the decision variables and a data frame which only includes the target variable.
+
+The code below splits the data as described above.
+
+```{r importing and seperating data}
+set.seed(123)
+
+# import data sets to train with
+
+val_train <- read.csv("~/University of Bristol/Semester 1/Data Science Toolbox/Assessments/Assessment 1/DataScienceFanClub/Data/Val_traindata/df_train_log_scaled_val.csv")
+val_test <- read.csv("~/University of Bristol/Semester 1/Data Science Toolbox/Assessments/Assessment 1/DataScienceFanClub/Data/Val_traindata/df_test_log_scaled_val.csv")
+
+# make sure target vars are factors
+
+feature_lag0 = c('X1','X2','X3','X4','X5','X6','X7','X8','X9','X10','X11','X12','X13','X14','X15','X17','X18')
+feature_lag1 = c(feature_lag0, 'X1_1yr','X2_1yr','X3_1yr','X4_1yr','X5_1yr','X6_1yr','X7_1yr','X8_1yr','X9_1yr','X10_1yr','X11_1yr','X12_1yr','X13_1yr','X14_1yr','X15_1yr','X17_1yr','X18_1yr')
+feature_lag2 = c(feature_lag1, 'X1_2yr','X2_2yr','X3_2yr','X4_2yr','X5_2yr','X6_2yr','X7_2yr','X8_2yr','X9_2yr','X10_2yr','X11_2yr','X12_2yr','X13_2yr','X14_2yr','X15_2yr','X17_2yr','X18_2yr')
+feature_lag3 = c(feature_lag2, 'X1_3yr','X2_3yr','X3_3yr','X4_3yr','X5_3yr','X6_3yr','X7_3yr','X8_3yr','X9_3yr','X10_3yr','X11_3yr','X12_3yr','X13_3yr','X14_3yr','X15_3yr','X17_3yr','X18_3yr')
+
+
+## Base Data
+
+x_train_base <-  val_train[, feature_lag0]
+x_test_base <- val_test[, feature_lag0]
+
+y_train_base <- factor(val_train[,'status_label_1yr'])
+y_test_base <- factor(val_test[,'status_label_1yr'])
+
+## Lag Data 
+
+# 1 year
+
+x_train_lag1yr <- val_train[, feature_lag1]
+x_test_lag1yr <- val_test[, feature_lag1]
+
+y_train_lag1yr <- factor(val_train[, "status_label_1yr"])
+y_test_lag1yr <- factor(val_test[, "status_label_1yr"])
+
+# 2 years
+
+x_train_lag2yr <- val_train[, feature_lag2]
+x_test_lag2yr <- val_test[, feature_lag2]
+
+y_train_lag2yr <- factor(val_train[, "status_label_1yr"])
+y_test_lag2yr <- factor(val_test[, "status_label_1yr"])
+
+# 3 years
+
+x_train_lag3yr <- val_train[, feature_lag3]
+x_test_lag3yr <- val_test[, feature_lag3]
+
+y_train_lag3yr <- factor(val_train[, "status_label_1yr"])
+y_test_lag3yr <- factor(val_test[, "status_label_1yr"])
+
+```
+
+## Basic Model
+
+I will start by creating a basic model using the base data set. I have chosen to develop a model in which k is 5, there is no automatic cross validation (as this data is panel data and the in built function for this does not account for this), and no resampling. I will then test this data on the validation data set. The code for this is below. 
+
+```{r basic model}
+
+# Training KNN base model
+
+ctr <- trainControl(method = "none",
+                    sampling = NULL)
+
+knnModel <- train(
+  x = x_train_base, 
+  y = y_train_base,
+  method = "knn",
+  tuneGrid = data.frame(k = 5),
+  trControl = ctr
+)
+
+print(knnModel)
+
+# predict on test set for classification 
+
+pred_class <- predict(knnModel, newdata = x_test_base, type = "raw")
+
+```
+
+### Confusion Matrix
+
+```{r conf matrix}
+
+conf_matrix <- confusionMatrix(pred_class, y_test_base)
+print(conf_matrix)
+
+```
+The above confusion matrix shows that there is only 1 "failed" prediction in the validation set from this model. This is due to the class imbalance in the status_label_1yr variable. This can be fixed by up-sampling or by using a synthetic over-sampling technique (SMOTE).
+
+### ROC Curve and AUC
+
+```{r roc auc}
+
+# predict on test set for probabilities
+
+pred_prob <- predict(knnModel, newdata = x_test_base, type = "prob")
+
+# Roc curve 
+roc_obj <- roc(y_test_base, pred_prob[, "failed"])
+
+plot(roc_obj)
+
+#  auc
+auc_value <- auc(roc_obj)
+print(auc_value)
+
+```
+From the above ROC curve and AUC value, it is clear that this model is not very accurate and does not effectively distinguish between different class values. This can be improved by increasing the value of K.
+
+## Tuning K Nearest Neighbour Model
+
+From the trivial model created in the previous section, it is clear that in order to tune and improve on this model, resampling needs to be performed and a variety of K values need to be tested. The below code is a function that allows a train and test data set to be passed aswell as a resampling method. Additionally, it tries all odd numbers for k from 1 to 51 then chooses the best model (based on AUC) out of these.
+
+``` {r KNN func}
+
+knn_model <- function(train_x, train_y, test_x, test_y, resampling) {
+  
+  set.seed(123)
+  
+  # Use only odd K values (to avoid ties)
+  k_values <- seq(1, 51, by = 2)
+  
+  # Control (no internal cross-validation)
+  ctrl <- trainControl(
+    method = "none",
+    classProbs = TRUE,
+    sampling = resampling
+  )
+  
+  results <- data.frame(k = integer(), Accuracy = numeric(), AUC = numeric())
+  models <- list()
+  
+  for (k in k_values) {
+    
+    # Train model
+    knnModel <- train(
+      x = train_x,
+      y = train_y,
+      method = "knn",
+      tuneGrid = data.frame(k = k),
+      trControl = ctrl
+    )
+    
+    # Predictions (class)
+    pred_class <- predict(knnModel, newdata = test_x, type = "raw")
+    conf <- confusionMatrix(pred_class, test_y)
+    
+    # Predictions (probabilities)
+    pred_prob <- predict(knnModel, newdata = test_x, type = "prob")
+    
+    # ROC + AUC
+    roc_obj <- tryCatch({
+      roc(test_y, pred_prob[, "failed"], quiet = TRUE)
+    }, error = function(e) NA)
+    
+    auc_val <- if (!is.na(roc_obj)[1]) auc(roc_obj) else NA
+    
+    # Store performance
+    results <- rbind(results, data.frame(
+      k = k,
+      Accuracy = conf$overall["Accuracy"],
+      AUC = auc_val
+    ))
+    
+    # Store model info
+    models[[paste0("k_", k)]] <- list(
+      model = knnModel,
+      conf = conf,
+      roc = roc_obj,
+      auc = auc_val
+    )
+  }
+  
+  # Find best model (prioritize AUC, fallback to Accuracy if AUC missing)
+  if (all(is.na(results$AUC))) {
+    best_k <- results$k[which.max(results$Accuracy)]
+    metric_used <- "Accuracy"
+  } else {
+    best_k <- results$k[which.max(results$AUC)]
+    metric_used <- "AUC"
+  }
+  
+  best_model <- models[[paste0("k_", best_k)]]
+  
+  # Summary printout
+  message(paste0("✅ Best K = ", best_k, " (based on ", metric_used, ")"))
+  message(paste0("   Accuracy: ", round(best_model$conf$overall["Accuracy"], 4)))
+  if (!is.na(best_model$auc)) message(paste0("   AUC: ", round(best_model$auc, 4)))
+  
+  # Return everything
+  return(list(
+    k = best_k,
+    model = best_model$model,
+    conf_matrix = best_model$conf,
+    roc = best_model$roc,
+    auc = best_model$auc,
+    all_results = results,
+    all_models = models
+  ))
+}
+
+
+```
+
+## Base Model 
+
+Starting with the base data, I will run the above function with no resampling, up-sampling and smoting.
+
+``` {r base models}
+
+knn_basic <- knn_model(x_train_base, y_train_base, x_test_base, y_test_base, NULL)
+knn_us <- knn_model(x_train_base, y_train_base, x_test_base, y_test_base, "up")
+knn_smote <- knn_model(x_train_base, y_train_base, x_test_base, y_test_base, "smote")
+
+
+```
+
+### Confusion Matrix 
+
+Below are the confusion matrices for all three of these models.
+
+``` {r conf mat base}
+
+message("confusion matrix for no resampling model: ")
+print(knn_basic$conf_matrix)
+
+message("confusion matrix for up-sampling model: ")
+print(knn_us$conf_matrix)
+
+message("confusion matrix for smote model: ")
+print(knn_smote$conf_matrix)
+
+```
+From this it can be seen again that there is a class imbalance leading to no failed prediction in the model without any resampling.
+
+### Visualisation of ROC Curve and AUC Value
+
+```{r roc curves base, figure-side, fig.show='hold', out.width="33%"}
+
+plot(knn_basic$roc)
+title(main = "No Resampling")
+
+plot(knn_us$roc)
+title(main = "Up-sampling")
+
+plot(knn_smote$roc)
+title(main = "Smoting")
+
+message(paste0("AUC for model with no resampling: ",knn_basic$auc))
+
+message(paste0("AUC for model with up-sampling: ", knn_us$auc))
+
+message(paste0("AUC for model with smoting: ", knn_smote$auc))
+
+```
+This shows that the model that uses smoting has the best ROC curve and AUC Value, followed by the model without resampling and then the up-sampling model.
+
+### Conclusion
+
+For the base data, I will conclude that the best model is the smote model as this has the best AUC value. The details of this model are below,
+
+```{r best base model - smote}
+
+message(paste0("K = ", knn_smote$k))
+message("Confusion Matrix: ")
+print(knn_smote$conf_matrix$table)
+message("ROC Curve: ")
+plot(knn_smote$roc)
+message(paste0("AUC: ", knn_smote$auc ))
+message("Other performance metrics: ")
+print(knn_smote$conf_matrix$overall)
+print(knn_smote$conf_matrix$byClass)
+
+```
+
+## 1 Year Lag Model 
+
+I will now create the same models with the 1 year lag data.
+
+``` {r 1 yr models}
+
+knn_basic_1yr <- knn_model(x_train_lag1yr, y_train_lag1yr, x_test_lag1yr, y_test_lag1yr, NULL)
+knn_us_1yr <- knn_model(x_train_lag1yr, y_train_lag1yr, x_test_lag1yr, y_test_lag1yr, "up")
+knn_smote_1yr <- knn_model(x_train_lag1yr, y_train_lag1yr, x_test_lag1yr, y_test_lag1yr, "smote")
+
+
+```
+
+### Confusion Matrix 
+
+Below are the confusion matrices for all three of these models.
+
+``` {r conf mat 1yr}
+
+message("confusion matrix for no resampling model: ")
+print(knn_basic_1yr$conf_matrix)
+
+message("confusion matrix for up-sampling model: ")
+print(knn_us_1yr$conf_matrix)
+
+message("confusion matrix for smote model: ")
+print(knn_smote_1yr$conf_matrix)
+
+```
+From this it can be seen again that there is a class imbalance leading to no failed prediction in the model without any resampling.
+
+### Visualisation of ROC Curve and AUC Value
+
+```{r roc curves 1yr, figure-side, fig.show='hold', out.width="33%"}
+
+plot(knn_basic_1yr$roc)
+title(main = "No Resampling")
+
+plot(knn_us_1yr$roc)
+title(main = "Up-sampling")
+
+plot(knn_smote_1yr$roc)
+title(main = "Smoting")
+
+message(paste0("AUC for model with no resampling: ",knn_basic_1yr$auc))
+
+message(paste0("AUC for model with up-sampling: ", knn_us_1yr$auc))
+
+message(paste0("AUC for model with smoting: ", knn_smote_1yr$auc))
+
+
+```
+This shows that the model that uses smoting has the best ROC curve and AUC.
+
+### Conclusion
+
+For the 1 year lag data, I will conclude that the best model is the smote model as it has the best AUC value. The details of this model are below,
+
+```{r best 1yr model}
+
+message(paste0("K = ", knn_smote_1yr$k))
+message("Confusion Matrix: ")
+print(knn_smote_1yr$conf_matrix$table)
+message("ROC Curve: ")
+plot(knn_smote_1yr$roc)
+message(paste0("AUC: ", knn_smote_1yr$auc ))
+message("Other performance metrics: ")
+print(knn_smote_1yr$conf_matrix$overall)
+print(knn_smote_1yr$conf_matrix$byClass)
+
+```
+
+## 2 Year Lag Model 
+
+I will now create the same models with the 2 year lag data.
+
+``` {r 2yr models}
+
+knn_basic_2yr <- knn_model(x_train_lag2yr, y_train_lag2yr, x_test_lag2yr, y_test_lag2yr, NULL)
+knn_us_2yr <- knn_model(x_train_lag2yr, y_train_lag2yr, x_test_lag2yr, y_test_lag2yr, "up")
+knn_smote_2yr <- knn_model(x_train_lag2yr, y_train_lag2yr, x_test_lag2yr, y_test_lag2yr, "smote")
+
+```
+
+### Confusion Matrix 
+
+Below are the confusion matrices for all three of these models.
+
+``` {r conf mat 2yr}
+
+
+message("confusion matrix for no resampling model: ")
+print(knn_basic_2yr$conf_matrix)
+
+message("confusion matrix for up-sampling model: ")
+print(knn_us_2yr$conf_matrix)
+
+message("confusion matrix for smote model: ")
+print(knn_smote_2yr$conf_matrix)
+
+```
+From this it can be seen again that there is a class imbalance leading to no failed prediction in the model without any resampling.
+
+### Visualisation of ROC Curve and AUC Value
+
+```{r roc curves 2yr, figure-side, fig.show='hold', out.width="33%"}
+
+plot(knn_basic_2yr$roc)
+title(main = "No Resampling")
+
+plot(knn_us_2yr$roc)
+title(main = "Up-sampling")
+
+plot(knn_smote_2yr$roc)
+title(main = "Smoting")
+
+message(paste0("AUC for model with no resampling: ",knn_basic_2yr$auc))
+
+message(paste0("AUC for model with up-sampling: ", knn_us_2yr$auc))
+
+message(paste0("AUC for model with smoting: ", knn_smote_2yr$auc))
+
+```
+This shows that the model without resampling has the best ROC curve and AUC Value, closely followed by the up-sampling model and then the smote model.
+
+### Conclusion
+
+For the 2 year lag data, I will conclude that the best model is the up-sampling model as, although this only has the second best AUC, it does still predict failed companies whereas the model without resampling does not. The details of this model are below,
+
+```{r best 2yr model }
+
+message(paste0("K = ", knn_us_2yr$k))
+message("Confusion Matrix: ")
+print(knn_us_2yr$conf_matrix$table)
+message("ROC Curve: ")
+plot(knn_us_2yr$roc)
+message(paste0("AUC: ", knn_us_2yr$auc ))
+message("Other performance metrics: ")
+print(knn_us_2yr$conf_matrix$overall)
+print(knn_us_2yr$conf_matrix$byClass)
+
+```
+
+## 3 Year Lag Model 
+
+When attempting to run the function on the data set with 3 years of lag features, it is to computationally intense to run due to the number of variables. Given that the AUC values for all other data sets do not provide that much of a varying AUC value, it is not worth the time it may take to run this for a marginally higher AUC value.
+
+### Evaluating the Best Model 
+
+The the best model for each data set was the smote model for the base data and the 1 year lag data, and the up-sampling model for the two year data. Below are the ROC curves for these. Below are the ROC curves for these models:
+
+```{r roc curves eval, figure-side, fig.show='hold', out.width="33%"}
+
+plot(knn_smote$roc)
+title(main = "Smote Model - Base Data")
+
+plot(knn_smote_1yr$roc)
+title(main = "Smote Model - 1 Year lag Data")
+
+plot(knn_us_2yr$roc)
+title(main = "Up-sampling Model - 2 Year Lag Data")
+
+message(paste0("The AUC for the best base model is: ", knn_smote$auc)) 
+
+message(paste0("The AUC for the best 1 year lag model is: ", knn_smote_1yr$auc)) 
+
+message(paste0("The AUC for the best 2 year lag model is: ", knn_us_2yr$auc)) 
+
+```
+From this, it is clear to see that when prioritising a high AUC, the 2 year lag model, with up-sampling is the best model. The details for this model are below.
+
+
+```{r final model details}
+
+message(paste0("K = ", knn_us_2yr$k))
+message("Confusion Matrix: ")
+print(knn_us_2yr$conf_matrix$table)
+message("ROC Curve: ")
+plot(knn_us_2yr$roc)
+message(paste0("AUC: ", knn_us_2yr$auc ))
+message("Other performance metrics: ")
+print(knn_us_2yr$conf_matrix$overall)
+print(knn_us_2yr$conf_matrix$byClass)
+
+```
+
+### Final Model Development
+
+The previous models have been trained on a subset of the full training data and then tested on a different unseen subset of the full training data. This was done in order to perform 1-fold cross validation. Now that I have the up-sampling model for the 2 year lag data as the best performing model out of all these I will retrain using the same K value (47) and sampling technique on the full training data set and then test this on the completely unseen test set. First, these data sets need to be loaded:
+
+```{r final test train data}
+
+final_train <- read.csv("~/University of Bristol/Semester 1/Data Science Toolbox/Assessments/Assessment 1/DataScienceFanClub/Data/Final_traindata/df_train_log_scaled_full.csv")
+final_test <- read.csv("~/University of Bristol/Semester 1/Data Science Toolbox/Assessments/Assessment 1/DataScienceFanClub/Data/Final_traindata/df_test_log_scaled.csv")
+
+x_train_lag2yr_full <- final_train[, feature_lag2]
+x_test_lag2yr_full <- final_test[, feature_lag2]
+
+y_train_lag2yr_full <- factor(final_train[, "status_label_1yr"])
+y_test_lag2yr_full <- factor(final_test[, "status_label_1yr"])
+
+```
+
+## Create the  Final Models
+
+```{r final model training and prediction}
+
+set.seed(456)
+
+# Final Model
+
+ctr_2yr <- trainControl(method = "none",
+                    sampling = "up")
+
+knnModel_2yr <- train(
+  x = x_train_lag2yr_full, 
+  y = y_train_lag2yr_full,
+  method = "knn",
+  tuneGrid = data.frame(k = 47),
+  trControl = ctr_2yr
+)
+
+# model summary 
+print(knnModel_2yr)
+
+# predict on test set for classification 
+pred_class_2yr <- predict(knnModel_2yr, newdata = x_test_lag2yr_full, type = "raw")
+
+# conf matrix
+conf_matrix_2yr <- confusionMatrix(pred_class_2yr, y_test_lag2yr_full)
+
+
+# predict on test set for probabilities
+pred_prob_2yr <- predict(knnModel_2yr, newdata = x_test_lag2yr_full, type = "prob")
+
+# Roc curve 
+roc_obj_2yr <- roc(y_test_lag2yr_full, pred_prob_2yr[, "failed"])
+
+#  auc
+auc_value_2yr <- auc(roc_obj_2yr)
+
+```
+
+The details for this final model are below.
+
+```{r final data final model details}
+
+message("K = 47")
+message("Confusion Matrix: ")
+print(conf_matrix_2yr$table)
+message("ROC Curve: ")
+plot(roc_obj_2yr)
+message(paste0("AUC: ", auc_value_2yr ))
+message("Other performance metrics: ")
+print(conf_matrix_2yr$overall)
+print(conf_matrix_2yr$byClass)
+
+```
