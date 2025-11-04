@@ -35,14 +35,14 @@ Lag variables gives our models information from previous to train on as we inves
 
 By introducing lag variables, we introduce NAs as a company e.g. at the beginning of the dataset doesn't have previous years to refer to. Hence, we remove accordingly.
 
-**Exploratory Data Analysis**
+**Exploratory Data Analysis and Train
 
 In plotting the distribution of our features, we noticed them being heavily skewed. We also noticed highly correlated variables i.e. X16 which was identical to another feature leading to its removal given its redundancy. This explorationa and our subsequent actions is exploerd in more detail in the EDA code. 
 
 
-**Training, validation and test split**
+**EDA and Splitting the Data** 
 
-We split the data by both company and time. This would prevent us from training the model on the data of a particular company, and then benefiting from that information in predicting its future. 
+
 
 
 
