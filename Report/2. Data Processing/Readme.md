@@ -42,7 +42,8 @@ In plotting the distribution of our features, we noticed them being heavily skew
 
 **EDA and Splitting the Data** 
 
-Our report EDA file and Data 
+Our report EDA file and completedataprocess files outlines in full detail the steps we took to plot the different features, how we scaled them and the full steps we took to process the data before 
+running our different models. 
 
 
 
