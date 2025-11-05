@@ -1,3 +1,5 @@
+The html file is only included for 'results_analysis.Rmd'. This is because it takes a long time to run the training for support vector machine and conseuqently, knitting takes a long time. To mitigate for this the results optained from support_vector_machine_training.Rmd is saved in csv and is read directly into results_analysis.Rmd.
+
 # Support Vector Machine
 
 Support Vector Machines (SVM) are a supervised learning algorithm designed primarily for binary classification, with foundations in statistical learing and convex optimization. The core idea here is to find a decision boundary which best seperate the binary classes by maximizing the margin (distance between the boundary and the nearest data point of each class.) There are multiple ways to formulate an SVM algorithm here we summarise the optimization used in R package 'e1071' default svm settings based on (https://www.csie.ntu.edu.tw/~cjlin/libsvm) [1]. 
