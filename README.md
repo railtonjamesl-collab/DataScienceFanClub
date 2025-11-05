@@ -1,7 +1,7 @@
 # Project group
 1. James Railton
 2. Billy Ryan
-3. Eloise
+3. Eloise Edwards
 4. Tomi
 5. Adlan
 
