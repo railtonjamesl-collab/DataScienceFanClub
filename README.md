@@ -2,7 +2,7 @@
 1. James Railton
 2. Billy Ryan
 3. Eloise Edwards
-4. Tomi
+4. Tomi Fasasi
 5. Adlan Anazim
 
 # Preparation
