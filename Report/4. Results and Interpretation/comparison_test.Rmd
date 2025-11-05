@@ -41,14 +41,14 @@ feature_lag3 = c(feature_lag2, 'X1_3yr','X2_3yr','X3_3yr','X4_3yr','X5_3yr','X6_
 
 ```{r data, include=FALSE}
 set.seed(1234)
-df_train_noscale <- read.csv('~/University of Bristol/Semester 1/Data Science Toolbox/Assessments/Assessment 1/DataScienceFanClub/Data/Final_traindata/df_train_full.csv')
-df_train_log_scale <- read.csv('~/University of Bristol/Semester 1/Data Science Toolbox/Assessments/Assessment 1/DataScienceFanClub/Data/Final_traindata/df_train_log_scaled_full.csv')
-df_train_log_noscale <- read.csv('~/University of Bristol/Semester 1/Data Science Toolbox/Assessments/Assessment 1/DataScienceFanClub/Data/Final_traindata/df_train_log_full.csv')
+df_train_noscale <- read.csv('https://raw.githubusercontent.com/railtonjamesl-collab/DataScienceFanClub/refs/heads/main/Data/Final_traindata/df_train_full.csv')
+df_train_log_scale <- read.csv('https://raw.githubusercontent.com/railtonjamesl-collab/DataScienceFanClub/refs/heads/main/Data/Final_traindata/df_train_log_scaled_full.csv')
+df_train_log_noscale <- read.csv('https://raw.githubusercontent.com/railtonjamesl-collab/DataScienceFanClub/refs/heads/main/Data/Final_traindata/df_train_log_full.csv')
 
 
-df_test_noscale <- read.csv('~/University of Bristol/Semester 1/Data Science Toolbox/Assessments/Assessment 1/DataScienceFanClub/Data/Final_traindata/df_test.csv')
-df_test_log_scale <- read.csv('~/University of Bristol/Semester 1/Data Science Toolbox/Assessments/Assessment 1/DataScienceFanClub/Data/Final_traindata/df_test_log_scaled.csv')
-df_test_log_noscale <- read.csv('~/University of Bristol/Semester 1/Data Science Toolbox/Assessments/Assessment 1/DataScienceFanClub/Data/Final_traindata/df_test_log.csv')
+df_test_noscale <- read.csv('https://raw.githubusercontent.com/railtonjamesl-collab/DataScienceFanClub/refs/heads/main/Data/Final_traindata/df_test.csv')
+df_test_log_scale <- read.csv('https://raw.githubusercontent.com/railtonjamesl-collab/DataScienceFanClub/refs/heads/main/Data/Final_traindata/df_test_log_scaled.csv')
+df_test_log_noscale <- read.csv('https://raw.githubusercontent.com/railtonjamesl-collab/DataScienceFanClub/refs/heads/main/Data/Final_traindata/df_test_log.csv')
 
 #categorical feature for the train and test set
 y_train <- factor(df_train_noscale[,'status_label_1yr'], levels = c('alive','failed'))
