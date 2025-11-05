@@ -9,7 +9,7 @@ We were interested in solving the binary classification problem: given a company
 
 Our chosen models include a Random Forest, XGboost, logistic regression, K Nearest Neighbours and SVM. We aim to explore how these models perform according to our chosen performance metric AUC.
 
-For each model, we will train it on the training set and test it on the validation set to determine which combination of features produced the highest AUC value. Then, that specific feature selection will be used to train on the entire training set before finally testing on the test set. 
+For each model, we will train it on the training set and test it on the validation set to determine which combination of years produced the highest AUC value. Then, that specific combination will be used to train on the entire training set before finally testing on the test set. 
 
 **Our motivation**
 
