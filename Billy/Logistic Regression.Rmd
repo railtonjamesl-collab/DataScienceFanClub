@@ -8,7 +8,7 @@ date: "2025-11-03"
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-The full outline for this individual section is on the folder "Billy" and under "Logistic Regression.md" on GitHub.
+The full outline for this individual section is on the folder "Billy" and under "Logistic Regression.md" on GitHub. Note that we have attempted to make the data as independent as possible, yet there will still be data leakage from the companies in the training set being dependent (if they are the same company) hence to proceed it is important to be wary of this.
 
 ```{r required libraries}
 pkgs <- c("pROC", "car", "glmnet", "logistf")
@@ -310,6 +310,8 @@ cvfit_ridge$lambda.1se
 ```
 
 LASSO, Elastic Net and Ridge AUC is slightly below previous tests, although all remain high. Future study could inspect these penalisation methods more in depth. 
+
+Attempted to use "geenet" to account for the temporal aspects of the model, but was not able to apply it correctly. For future, attempt to implement this or similar techniques to tackle the autoregressive correlation structure between companies.
 
 ```{r final test}
 file_path1 <- c("../Data/Final_traindata/df_train_log_scaled_full.csv", "../Data/Final_traindata/df_test_log_scaled.csv")

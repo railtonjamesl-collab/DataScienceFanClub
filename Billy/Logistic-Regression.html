@@ -356,7 +356,11 @@ display: none;
 
 
 <p>The full outline for this individual section is on the folder “Billy”
-and under “Logistic Regression.md” on GitHub.</p>
+and under “Logistic Regression.md” on GitHub. Note that we have
+attempted to make the data as independent as possible, yet there will
+still be data leakage from the companies in the training set being
+dependent (if they are the same company) hence to proceed it is
+important to be wary of this.</p>
 <pre class="r"><code>pkgs &lt;- c(&quot;pROC&quot;, &quot;car&quot;, &quot;glmnet&quot;, &quot;logistf&quot;)
 
 for(p in pkgs){
@@ -784,6 +788,10 @@ plot(cvfit_ridge)</code></pre>
 <p>LASSO, Elastic Net and Ridge AUC is slightly below previous tests,
 although all remain high. Future study could inspect these penalisation
 methods more in depth.</p>
+<p>Attempted to use “geenet” to account for the temporal aspects of the
+model, but was not able to apply it correctly. For future, attempt to
+implement this or similar techniques to tackle the autoregressive
+correlation structure between companies.</p>
 <pre class="r"><code>file_path1 &lt;- c(&quot;../Data/Final_traindata/df_train_log_scaled_full.csv&quot;, &quot;../Data/Final_traindata/df_test_log_scaled.csv&quot;)
 final_train &lt;- read.csv(file_path1[1])
 final_test &lt;- read.csv(file_path1[2])

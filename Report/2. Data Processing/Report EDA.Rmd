@@ -12,7 +12,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## R Markdown
 
-Basic EDA for American Bankruptcy Dataset
+Download required packages.
 
 ```{r packages}
 pkgs <- c("tidyverse","ggplot2","corrplot","dplyr","RColorBrewer", "data.table", "rlang", "patchwork")
@@ -37,6 +37,26 @@ if (!file.exists("preprocessed_data.csv")) {
 dataset <- fread("preprocessed_data.csv")
 ```
 
+We provide correct title of all variables here:
+X1: Current Assets
+X2: Cost of Goods 
+X3: Depreciation and amortization
+X4: EBITDA: Earnings before interest, taxes, depreciation, and amortization
+X5: Inventory
+X6: Net Income
+X7: Total Receivables
+X8: Market Value
+X9: Net Sales
+X10: Total Assets
+X11: Total Long-term Debt
+X12: EBIT: Earnings before interest and taxes
+X13: Gross Profit
+X14: Total Current Liabilities
+X15: Retained Earnings
+X16: Total Revenue
+X17: Total Liabilities
+X18: Total Operating Expenses
+
 ```{r alive to failed ratio}
 cat("\nPercentage of years that are labeled failed:", (length(dataset$company_name[dataset$status_label_1yr=="failed"]) / length(dataset$company_name))*100,"%\n")
 
@@ -47,7 +67,7 @@ Clearly we have a large imbalance in alive to failed companies. This will have a
 
 ```{r piecharts, fig.height=5, fig.width=15}
 # Raw Total Status Labels
-info1 <- c(sum(dataset$status_label == "alive"), sum(dataset$status_label == "failed"))
+info1 <- c(sum(dataset$status_label_1yr == "alive"), sum(dataset$status_label_1yr == "failed"))
 perc1 <- round(info1 / sum(info1) * 100, 2)
 names1 <- paste(c("alive", "failed"), perc1, "%")
 
@@ -80,7 +100,7 @@ box_x1 + box_x2
 We see that the majority of values lay around 0, yet the outliers completely skew the data making it difficult to gather meaningful information from these graphs alone. These properties are not just present in X1 and X2, but all variables of interest.
 
 ```{r boxplots together, fig.height=4, fig.width=10}
-df_covariates <- dataset[, -c(1:4, 23:76)]
+df_covariates <- dataset[, -c(1:6, 25:78)]
 df_covariates_multplot <- df_covariates[, -c(1,2)] # For this analysis, we are only interested in base features; no lag features
 covariates <- names(df_covariates_multplot)
 boxplots <- list()
@@ -255,7 +275,7 @@ for (i in seq_along(histplot_groups)) {
 }
 ```
 
-Without further inspection our plots look to follow a normal distribution, hence succeeding in standardising the variables. Yet, a variable such as X15 has over 22000 observations simply ignored due to the high frequency of negative values associated with said variable. Therefore it is illogical to proceed with such a transformation as we are essentially ignoring data. This leads us to a more apt transformation called Log-Modulus.
+Without further inspection our plots look to follow a normal distribution, hence succeeding in standardising the variables. Yet, a variable such as X15 (Retained Earnings) has over 22000 observations simply ignored due to the high frequency of negative values associated with said variable. Therefore it is illogical to proceed with such a transformation as we are essentially ignoring data. This leads us to a more apt transformation called Log-Modulus.
 
 ```{r hists log mod, fig.height=3.8, fig.width=10}
 # We provide a log transform on the absolute value of the variable (and add 1) then multiply by the original sign of the variable
@@ -303,7 +323,7 @@ corrplot(cor_matrix, method = "number", type="upper")
 ```{r identical}
 identical(dataset$X9, dataset$X16)
 ```
-Therefore, we will remove variable X16 when we arrive to model analysis as it is completely identical to variable X9 so it will be of no use to us. We will now decide on whether a variable is deemed to be "highly correlated" to another variable. Since the incredibly high correlation figures, we choose any variable with a correlation value of greater than 0.95 to be deemed highly correlated.
+Therefore, we will remove variable X16 (Total Revenue) when we arrive to model analysis as it is completely identical to variable X9 (Net Sales) so it will be of no use to us. We will now decide on whether a variable is deemed to be "highly correlated" to another variable. Since the incredibly high correlation figures, we choose any variable with a correlation value of greater than 0.95 to be deemed highly correlated.
 
 ```{r highly correlated variables}
 tmp <- cor(df_covariates)
@@ -315,6 +335,6 @@ correlated_vars <- data.frame(HighCorrelation = to_remove)
 print(correlated_vars)
 ```
 
-We see that the variables X2, X4, X9, X10 (and X16) are highly correlated to one or more variables within the dataset. Therefore, for possible further analysis in the model selection section part of the report, one may wish to remove them and see whether it improves their model.
+We see that the variables X2 (Cost of Goods Sold), X4 (EBITDA), X9 (Net Sales), X10 (Total Assets) are highly correlated to one or more variables within the dataset. Consulting the correlation matrix above, we see that they do in fact report extremely high correlation values. Therefore, for possible further analysis in the model selection section part of the report, one may wish to remove them and see whether it improves their model.
 
 This concludes the EDA section of the report. We have covered trends in the mean data over the years, showing that all variables follow a similar upwards trend. We have also identified the impact of outliers on our data and that many of the variables have high correlation. This will be of further use in the next part of the report.
