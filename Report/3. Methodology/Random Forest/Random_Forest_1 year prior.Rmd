@@ -218,52 +218,9 @@ legend("bottomright",
        col=c("#1b9e77","#d95f02","#7570b3","#e7298a"),
        lwd=2, bty="n")
 
-#-------------------------------------------
-# Step 4: Retrain best model on FULL training set
-#-------------------------------------------
-
-final_train <- "../data/Final_traindata/df_train_full.csv"
-final_test  <- "../data/Final_traindata/df_test.csv"
-
-rf_final <- train_rf_cumulative(
-  train_file = final_train,
-  valid_file = final_test,
-  lags_to_include = best_lags
-)
-
-cat("\nFinal model AUC on Final Test Set =", round(rf_final$auc, 3), "\n")
-
-#-------------------------------------------
-# FINAL TEST METRICS
-#-------------------------------------------
-final_test_df <- read.csv(final_test)
-true_test <- as.factor(final_test_df$status_label_1yr)
-
-cat("\nMetrics for FINAL model (Test Set):\n")
-
-final_metrics <- compute_metrics(rf_final, final_test_df, true_test)
-
-print(final_metrics$confusion_matrix)
-cat("\nAccuracy :", round(final_metrics$accuracy, 3))
-cat("\nPrecision:", round(final_metrics$precision, 3))
-cat("\nRecall   :", round(final_metrics$recall, 3))
-cat("\nF1 Score :", round(final_metrics$f1, 3), "\n")
-
-#-------------------------------------------
-# Step 5: Final ROC Plot
-#-------------------------------------------
-plot(rf_final$roc, col="#1b9e77", lwd=3,
-     main=paste("Final Test ROC Curve (", best_model_name, ")", sep=""))
-
-abline(a=0, b=1, lty=2, col="gray")
-
-text(
-  x = 0.6, y = 0.1,
-  labels = paste("AUC =", round(rf_final$auc, 3)),
-  cex = 1.2
-)
 
 ```
+
 
 
 
