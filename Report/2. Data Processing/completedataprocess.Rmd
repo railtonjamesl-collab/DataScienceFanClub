@@ -11,7 +11,7 @@ library(tidyr)
 library(caret)
 library(dplyr)
 ```
-The data we are using is a panel data containing various financial features a US company has and whether it went bankrupt between 1998-2018 originate from [reference]. Since our goal is to train the algorithm to be able to classifie a company that is potentially about to go bankrupt, there are several data processing rask that we need to do before it is usable. 
+The data we are using is a panel data containing various financial features a US company has and whether it went bankrupt between 1998-2018 originate from [1]. Since our goal is to train the algorithm to be able to classifie a company that is potentially about to go bankrupt, there are several data processing rask that we need to do before it is usable. 
 
 Firstly, one of our aim is the examine whether that lag features(Information from previous years) can help predict the potential bankruptcy in current year. In this project, we considered up to 3 lag years. In order to do so, the data from year 1998 - 2001 is removed as some of the lag features they contain will have NAN values and we believe that they tradeoff between removing instead of imputing missing value is justified here given that the data set is quite large. Additionally we also need to remove company which contains less than three consequtive recorded years as this results again in NAN values for lag features. It is worth noting that this may introduce a form of bias against younger company. As the data now only consider a stable company with age of atleast 3 years.
 
@@ -19,7 +19,7 @@ Secondly, the dataset labeled healthy companies between 1998-2018 as 'alive' and
 
 Finally, we need to address the issue of cross sectional leakage. This phenomenon occurs when the same companies appear in both train and test dataset. It results in implicit structure of a company being learned within the training set. For example if the underlying true model of the financial features is a variation of a fixed effect model, the algorithm may implicitly learned these features and inturn do a better job at predicting the behaviour of these companies. Although this provide no issue if the goal is to forecast the behaviour of these companies. However, the aim of this project is to generalised the algorithm to be able to predict the bankruptcies of unseen companies and so these form of leakage is undesirable.
 
-Both temporal and cross sectional leakage introduced their own unique issue that leads to an overestimation of the performance of the trained model in the test data. This may results in potential investor or users of the algorithm having a skewed perception of the algorithm reliability. Therefore it is critical that we address these issue pressing forward. In order to do so, we followed the guideline on how to split the data from (reference) closely. Additionally, for method that required standardization, special care is given to avoid temporal leakage. How these procedure is achieve will be describe throughout this R-markdown file.
+Both temporal and cross sectional leakage introduced their own unique issue that leads to an overestimation of the performance of the trained model in the test data. This may results in potential investor or users of the algorithm having a skewed perception of the algorithm reliability. Therefore it is critical that we address these issue pressing forward. In order to do so, we followed the guideline on how to split the data from [2] closely. Additionally, for method that required standardization, special care is given to avoid temporal leakage. How these procedure is achieve will be describe throughout this R-markdown file.
 
 
 ```{r}
@@ -407,3 +407,8 @@ test_scaled_val <- predict(scaler_val, df_test_log_val)
 #write.csv(test_scaled_val, "C:\\Users\\railt\\DataScienceFanClub\\Data\\Val_traindata\\df_test_log_scaled_val.csv")
 
 ```
+
+#reference
+[1] Lombardo, G., Pellegrino, M., Adosoglou, G., Cagnoni, S., Pardalos, P.M. & Poggi, A. (2022) Machine Learning for Bankruptcy Prediction in the American Stock Market: Dataset and Benchmarks. Future Internet, 14(8), 244. https://doi.org/10.3390/fi14080244
+
+[2] Cerqua, A., Letta, M. & Pinto, G. (2024) On the (Mis)Use of Machine Learning with Panel Data. Available at SSRN: https://ssrn.com/abstract=5014594 or http://dx.doi.org/10.2139/ssrn.5014594

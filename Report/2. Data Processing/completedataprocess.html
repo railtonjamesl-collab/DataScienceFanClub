@@ -374,9 +374,9 @@ display: none;
 ##     intersect, setdiff, setequal, union</code></pre>
 <p>The data we are using is a panel data containing various financial
 features a US company has and whether it went bankrupt between 1998-2018
-originate from [reference]. Since our goal is to train the algorithm to
-be able to classifie a company that is potentially about to go bankrupt,
-there are several data processing rask that we need to do before it is
+originate from [1]. Since our goal is to train the algorithm to be able
+to classifie a company that is potentially about to go bankrupt, there
+are several data processing rask that we need to do before it is
 usable.</p>
 <p>Firstly, one of our aim is the examine whether that lag
 features(Information from previous years) can help predict the potential
@@ -421,10 +421,10 @@ model in the test data. This may results in potential investor or users
 of the algorithm having a skewed perception of the algorithm
 reliability. Therefore it is critical that we address these issue
 pressing forward. In order to do so, we followed the guideline on how to
-split the data from (reference) closely. Additionally, for method that
-required standardization, special care is given to avoid temporal
-leakage. How these procedure is achieve will be describe throughout this
-R-markdown file.</p>
+split the data from [2] closely. Additionally, for method that required
+standardization, special care is given to avoid temporal leakage. How
+these procedure is achieve will be describe throughout this R-markdown
+file.</p>
 <pre class="r"><code>#data initialisation
 bankruptcy_data &lt;- read.csv(&quot;C:\\Users\\railt\\DataScienceFanClub\\Data\\raw_data.csv&quot;)</code></pre>
 <p>Total number of company</p>
@@ -825,6 +825,12 @@ test_scaled_val &lt;- predict(scaler_val, df_test_log_val)</code></pre>
 
 #write.csv(train_scaled_val, &quot;C:\\Users\\railt\\DataScienceFanClub\\Data\\Val_traindata\\df_train_log_scaled_val.csv&quot;)
 #write.csv(test_scaled_val, &quot;C:\\Users\\railt\\DataScienceFanClub\\Data\\Val_traindata\\df_test_log_scaled_val.csv&quot;)</code></pre>
+<p>#reference [1] Lombardo, G., Pellegrino, M., Adosoglou, G., Cagnoni,
+S., Pardalos, P.M. &amp; Poggi, A. (2022) Machine Learning for
+Bankruptcy Prediction in the American Stock Market: Dataset and
+Benchmarks. Future Internet, 14(8), 244. <a href="https://doi.org/10.3390/fi14080244" class="uri">https://doi.org/10.3390/fi14080244</a></p>
+<p>[2] Cerqua, A., Letta, M. &amp; Pinto, G. (2024) On the (Mis)Use of
+Machine Learning with Panel Data. Available at SSRN: <a href="https://ssrn.com/abstract=5014594" class="uri">https://ssrn.com/abstract=5014594</a> or <a href="http://dx.doi.org/10.2139/ssrn.5014594" class="uri">http://dx.doi.org/10.2139/ssrn.5014594</a></p>
 </div>
 
 
