@@ -2,7 +2,7 @@
 
 **Sourcing our data**
 
-Originally, we were interested in credit loan data. From kaggle to machine learning papers, we identified two issues:
+Originally, we were interested in credit loan data. From Kaggle to machine learning papers, we identified two issues:
 
 1. Given credit loan data involves highly personal information, datasets were often synthetic. This would limit the significance of our results given the lack of variation in the data.
 2. Alternatively, datasets were highly convoluted - including over 100 variables without a clear dictionary and explanation of what each variable meant
@@ -29,7 +29,7 @@ This would improve the quality of our predictions by removing companies that had
 
 3. Introduce lag variables
 
-Lag variables gives our models information from previous years to train on as we investigate the impact of more information on our model's predictive power.
+Lag variables give our models information from previous years to train on as we investigate the impact of more information on our model's predictive power.
 
 4. Remove NAs from the dataset
 
