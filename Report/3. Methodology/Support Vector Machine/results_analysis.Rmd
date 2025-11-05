@@ -1,0 +1,84 @@
+---
+title: "Untitled"
+output: html_document
+date: "2025-11-03"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+In this section we examine  the result of the trained model. 
+```{r}
+library(e1071)   
+library(pROC)    
+library(caret)   
+library(ROSE)
+library(dplyr)
+library(smotefamily)
+library(PRROC)
+library(xgboost)
+library(tidyr)
+```
+Here we load up the results and mutate them into one data frame
+```{r}
+
+results_nolag <- read.csv("C:\\Users\\railt\\DataScienceFanClub\\James\\results_nolag.csv")
+results_lag1 <- read.csv("C:\\Users\\railt\\DataScienceFanClub\\James\\results_lag1.csv")
+results_lag2 <- read.csv("C:\\Users\\railt\\DataScienceFanClub\\James\\results_lag2.csv")
+results_lag3 <- read.csv("C:\\Users\\railt\\DataScienceFanClub\\James\\results_lag3.csv")
+
+res_nolag <- results_nolag  %>% mutate(lag = "lag0 (no lag)")
+res_lag1  <- results_lag1   %>% mutate(lag = "lag1")
+res_lag2  <- results_lag2   %>% mutate(lag = "lag2")
+res_lag3  <- results_lag3   %>% mutate(lag = "lag3")
+
+all_res <- bind_rows(res_nolag, res_lag1, res_lag2, res_lag3) %>%
+  # order facets nicely
+  mutate(lag = factor(lag, levels = c("lag0 (no lag)", "lag1", "lag2", "lag3"))) %>%
+  # treat gamma as a label for plotting (keeps exact numeric values)
+  mutate(gamma_lab = as.factor(signif(gamma, 3)))
+
+```
+
+Here's the heatmap of the AUC values of the resutls. We can see that the model with the best performing AUC is given by the no lag feature, c = 0.1, and $\gamma = 0.01$ .
+```{r}
+ggplot(all_res, aes(x = factor(cost), y = gamma_lab, fill = AUC)) +
+  geom_tile(color = "black") +
+  geom_text(aes(label = sprintf("%.3f", AUC)), size = 3) +
+  facet_wrap(~ lag) +
+  labs(
+    title = "SVM-RBF tuning: AUC by (cost, gamma)",
+    x = "Cost (C)", y = "Gamma",
+    fill = "AUC"
+  ) +
+  scale_fill_gradient(low = "white", high = "skyblue") +
+  theme_minimal(base_size = 12)
+
+
+
+```
+Here's the graph from of all recorded metric parameters. Here we observed that model with higher accuracy perform worst in AUC since it simply predict everything as alive. The higher accuracy is simply a by product of a heavility imbalanced data. Importantly, in the context of company bankruptcies, a false positive simply implies that the investor missed out on potentially healthy company while false negative can be detrimental in the potential lost in investment. Therefore it is crucial that the best performing model also has high sensitivity. As seen from the graph we observed that the no lag features model with $c=0.1$ and $\gamma=0.01$ satisfied this criteria. Therefore this model will be used in the comparison test in the next section.
+```{r}
+all_res_long <- all_res %>%
+  pivot_longer(
+    cols = c(Accuracy, AUC, Sensitivity, Specificity),
+    names_to = "metric", values_to = "value"
+  )
+
+ggplot(all_res_long, aes(x = cost, y = value, color = gamma_lab, group = gamma_lab)) +
+  geom_line() + geom_point() +
+  facet_grid(metric ~ lag, scales = "free_y") +
+  scale_x_log10(breaks = unique(all_res_long$cost)) +
+  labs(
+    title = "Tuning metrics by Cost and Gamma",
+    x = "Cost", y = "Metric value", color = "Gamma"
+  ) +
+  theme_minimal(base_size = 12)
+
+```
+
+
+
+
+
+```

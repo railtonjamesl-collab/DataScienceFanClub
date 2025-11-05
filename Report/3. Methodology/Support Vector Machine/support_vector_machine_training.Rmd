@@ -1,0 +1,281 @@
+---
+title: "SVM test"
+output: html_document
+date: "2025-10-25"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(e1071)   
+library(pROC)    
+library(caret)   
+library(ROSE)
+library(dplyr)
+library(smotefamily)
+library(PRROC)
+library(xgboost)
+```
+
+First we initialise the data
+```{r}
+df_train <- read.csv("C:\\Users\\railt\\DataScienceFanClub\\Data\\Val_traindata\\df_train_log_scaled_val.csv")
+df_test <- read.csv("C:\\Users\\railt\\DataScienceFanClub\\Data\\Val_traindata\\df_test_log_scaled_val.csv")
+
+df_train <- df_train[-c(1,2)]
+df_test <- df_test[-c(1,2)]
+
+feature_lag0 = c('X1','X2','X3','X4','X5','X6','X7','X8','X9','X10','X11','X12','X13','X14','X15','X17','X18')
+feature_lag1 = c(feature_lag0, 'X1_1yr','X2_1yr','X3_1yr','X4_1yr','X5_1yr','X6_1yr','X7_1yr','X8_1yr','X9_1yr','X10_1yr','X11_1yr','X12_1yr','X13_1yr','X14_1yr','X15_1yr','X17_1yr','X18_1yr')
+feature_lag2 = c(feature_lag1, 'X1_2yr','X2_2yr','X3_2yr','X4_2yr','X5_2yr','X6_2yr','X7_2yr','X8_2yr','X9_2yr','X10_2yr','X11_2yr','X12_2yr','X13_2yr','X14_2yr','X15_2yr','X17_2yr','X18_2yr')
+feature_lag3 = c(feature_lag2, 'X1_3yr','X2_3yr','X3_3yr','X4_3yr','X5_3yr','X6_3yr','X7_3yr','X8_3yr','X9_3yr','X10_3yr','X11_3yr','X12_3yr','X13_3yr','X14_3yr','X15_3yr','X17_3yr','X18_3yr')
+
+```
+
+Initialise the data
+```{r}
+
+#no lag feature
+x_train_nolag <- df_train[, feature_lag0]
+x_test_nolag <- df_test[, feature_lag0]
+
+#current year and include 1 lag year
+x_train_lag1 <- df_train[, feature_lag1]
+x_test_lag1 <- df_test[, feature_lag1]
+
+#current year and include 1 and 2 lag years
+
+x_train_lag2 <- df_train[, feature_lag2]
+x_test_lag2 <- df_test[, feature_lag2]
+
+#current year and include 1 and 2 and 3 lag years
+x_train_lag3 <- df_train[, feature_lag3]
+x_test_lag3 <- df_test[, feature_lag3]
+
+y_train <- factor(df_train[,'status_label_1yr'], level = c('alive','failed'))
+y_test <- factor(df_test[,'status_label_1yr'], level = c('alive','failed'))
+```
+
+```{r}
+#smoting this data
+set.seed(777) 
+train_smote_nolag <- SMOTE(x_train_nolag, y_train)
+train_smote_lag1 <- SMOTE(x_train_lag1, y_train)
+train_smote_lag2 <- SMOTE(x_train_lag2, y_train)
+train_smote_lag3 <- SMOTE(x_train_lag3, y_train)
+
+new_df_nolag <- train_smote_nolag$data
+new_df_lag1 <- train_smote_lag1$data
+new_df_lag2 <- train_smote_lag2$data
+new_df_lag3 <- train_smote_lag3$data
+
+colnames(new_df_nolag)[ncol(new_df_nolag)] <- 'status_label_1yr'
+colnames(new_df_lag1)[ncol(new_df_lag1)] <- 'status_label_1yr'
+colnames(new_df_lag2)[ncol(new_df_lag2)] <- 'status_label_1yr'
+colnames(new_df_lag3)[ncol(new_df_lag3)] <- 'status_label_1yr'
+
+x_train_sm_nolag <- new_df_nolag[, -ncol(new_df_nolag)]
+x_train_sm_lag1 <- new_df_lag1[, -ncol(new_df_lag1)]
+x_train_sm_lag2 <- new_df_lag2[, -ncol(new_df_lag2)]
+x_train_sm_lag3 <- new_df_lag3[, -ncol(new_df_lag3)]
+
+y_train_sm_nolag <- factor(new_df_nolag$status_label_1yr)
+y_train_sm_lag1 <- factor(new_df_lag1$status_label_1yr)
+y_train_sm_lag2 <- factor(new_df_lag2$status_label_1yr)
+y_train_sm_lag3 <- factor(new_df_lag3$status_label_1yr)
+```
+It takes approximately ~10-20 minutes to run each session of SVM with SMOTE upsampling. This is a conseuqnce of radial kernel SVM has approximately O(n^2) ~ O(n^3). Therefore for 4 values of c, and 4 values of possible gamma, if we were to run all possible combination of features i.e. no lag, included 1 lag , included 2 lag, included 3 lag, it would take about 16 sessions to complete the hyper parameter tuning. This amount to about 4.5 - 9 hours. This highlight a major downside with support vector machine method. In theory, the computational speed can be significantly reduce if linear kernel was chosen. However, linear kernel is a degenerative case of the radial kernel, and in most case produce a less accurage results (source). PCA can also possible reduce the computational time here but the algorithm scale linear with feature so it shouldn't affect the performance much.
+
+
+In this section we will perform a parameter tuning. Given that it's extremely time consuming to perform tuning for a finer set of parameter. Here we simply perform a parameter tuning based on commonly use heuristic values. We first perform tuning for a model where the lag feature is not included
+```{r}
+cost_values  <- c(0.1, 1, 10, 100)
+gamma_values <- c(2/ncol(x_train_sm_nolag), 1/ncol(x_train_sm_nolag), 0.1, 0.01)
+
+results_nolag <- data.frame(cost = numeric(), gamma = numeric(),
+                      Accuracy = numeric(), AUC = numeric(),
+                      Sensitivity = numeric(), Specificity = numeric(), Confuse = numeric())
+
+for (C in cost_values) {
+  for (g in gamma_values) {
+
+    svm_rbf <- svm(
+      x = x_train_sm_nolag,
+      y = y_train_sm_nolag,
+      kernel = 'radial',
+      cost   = C,
+      gamma  = g,
+      probability = TRUE
+    )
+
+    pred_oc <- predict(svm_rbf, x_test_nolag, decision.values = TRUE, probability = TRUE)
+    pred    <- factor(pred_oc, levels = levels(y_test))
+
+    # confusion matrix metrics
+    cm <- confusionMatrix(pred, y_test, positive = "failed")
+
+    # AUC from probabilities (alive)
+    probs <- attr(pred_oc, "probabilities")[, "alive"]
+    roc_obj <- roc(response = y_test,
+                   predictor = probs)
+    auc_val <- as.numeric(auc(roc_obj))
+    
+    print(auc_val)
+    results_nolag <- rbind(results_nolag, data.frame(
+      cost = C, gamma = g,
+      Accuracy = as.numeric(cm$overall["Accuracy"]),
+      AUC = auc_val,
+      Sensitivity = as.numeric(cm$byClass["Sensitivity"]),
+      Specificity = as.numeric(cm$byClass["Specificity"])
+    ))
+  }
+}
+```
+tuning for model with 1 lag
+```{r}
+cost_values  <- c(0.1, 1, 10, 100)
+gamma_values <- c(2/ncol(x_train_sm_lag1), 1/ncol(x_train_sm_lag1), 0.1, 0.01)
+
+results_lag1 <- data.frame(cost = numeric(), gamma = numeric(),
+                      Accuracy = numeric(), AUC = numeric(),
+                      Sensitivity = numeric(), Specificity = numeric())
+
+for (C in cost_values) {
+  for (g in gamma_values) {
+
+    svm_rbf <- svm(
+      x = x_train_sm_lag1,
+      y = y_train_sm_lag1,
+      kernel = 'radial',
+      cost   = C,
+      gamma  = g,
+      probability = TRUE
+    )
+
+    pred_oc <- predict(svm_rbf, x_test_lag1, decision.values = TRUE, probability = TRUE)
+    pred    <- factor(pred_oc, levels = levels(y_test))
+
+    # confusion matrix metrics
+    cm <- confusionMatrix(pred, y_test, positive = "failed")
+
+    probs <- attr(pred_oc, "probabilities")[, "alive"]
+    roc_obj <- roc(response = y_test,
+                   predictor = probs)
+    auc_val <- as.numeric(auc(roc_obj))
+    
+    print(auc_val)
+    results_lag1 <- rbind(results_lag1, data.frame(
+      cost = C, gamma = g,
+      Accuracy = as.numeric(cm$overall["Accuracy"]),
+      AUC = auc_val,
+      Sensitivity = as.numeric(cm$byClass["Sensitivity"]),
+      Specificity = as.numeric(cm$byClass["Specificity"])
+    ))
+  }
+}
+```
+model with 2yr lag
+```{r}
+cost_values  <- c(0.1, 1, 10, 100)
+gamma_values <- c(2/ncol(x_train_sm_lag2), 1/ncol(x_train_sm_lag2), 0.1, 0.01)
+
+results_lag2 <- data.frame(cost = numeric(), gamma = numeric(),
+                      Accuracy = numeric(), AUC = numeric(),
+                      Sensitivity = numeric(), Specificity = numeric())
+
+for (C in cost_values) {
+  for (g in gamma_values) {
+
+    svm_rbf <- svm(
+      x = x_train_sm_lag2,
+      y = y_train_sm_lag2,
+      kernel = 'radial',
+      cost   = C,
+      gamma  = g,
+      probability = TRUE
+    )
+
+    pred_oc <- predict(svm_rbf, x_test_lag2, decision.values = TRUE, probability = TRUE)
+    pred    <- factor(pred_oc, levels = levels(y_test))
+
+    # confusion matrix metrics
+    cm <- confusionMatrix(pred, y_test, positive = "failed")
+
+    # AUC from probabilities (alive)
+    probs <- attr(pred_oc, "probabilities")[, "alive"]
+    roc_obj <- roc(response = y_test,
+                   predictor = probs)
+    auc_val <- as.numeric(auc(roc_obj))
+    
+    print(auc_val)
+    results_lag2 <- rbind(results_lag2, data.frame(
+      cost = C, gamma = g,
+      Accuracy = as.numeric(cm$overall["Accuracy"]),
+      AUC = auc_val,
+      Sensitivity = as.numeric(cm$byClass["Sensitivity"]),
+      Specificity = as.numeric(cm$byClass["Specificity"])
+    ))
+  }
+}
+```
+model with 3yr lag
+```{r}
+cost_values  <- c(0.1, 1, 10, 100)
+gamma_values <- c(2/ncol(x_train_sm_lag3), 1/ncol(x_train_sm_lag3), 0.1, 0.01)
+
+results_lag3 <- data.frame(cost = numeric(), gamma = numeric(),
+                      Accuracy = numeric(), AUC = numeric(),
+                      Sensitivity = numeric(), Specificity = numeric())
+
+for (C in cost_values) {
+  for (g in gamma_values) {
+
+    svm_rbf <- svm(
+      x = x_train_sm_lag3,
+      y = y_train_sm_lag3,
+      kernel = 'radial',
+      cost   = C,
+      gamma  = g,
+      probability = TRUE
+    )
+
+    pred_oc <- predict(svm_rbf, x_test_lag3, decision.values = TRUE, probability = TRUE)
+    pred    <- factor(pred_oc, levels = levels(y_test))
+
+    # confusion matrix metrics
+    cm <- confusionMatrix(pred, y_test, positive = "failed")
+
+    # AUC from probabilities (alive)
+    probs <- attr(pred_oc, "probabilities")[, "alive"]
+    roc_obj <- roc(response = y_test,
+                   predictor = probs)
+    auc_val <- as.numeric(auc(roc_obj))
+    
+    print(auc_val)
+    results_lag3 <- rbind(results_lag3, data.frame(
+      cost = C, gamma = g,
+      Accuracy = as.numeric(cm$overall["Accuracy"]),
+      AUC = auc_val,
+      Sensitivity = as.numeric(cm$byClass["Sensitivity"]),
+      Specificity = as.numeric(cm$byClass["Specificity"])
+    ))
+  }
+}
+```
+Since it takes a great amount of time to train the model. In order to avoid having to retrain model everytime. I've decided to saved to result here and do an analysis in a seperated markdown file.
+```{r}
+write.csv(results_nolag, "C:\\Users\\railt\\DataScienceFanClub\\James\\results_nolag.csv")
+write.csv(results_lag1, "C:\\Users\\railt\\DataScienceFanClub\\James\\results_lag1.csv")
+write.csv(results_lag2, "C:\\Users\\railt\\DataScienceFanClub\\James\\results_lag2.csv")
+write.csv(results_lag3, "C:\\Users\\railt\\DataScienceFanClub\\James\\results_lag3.csv")
+
+```
+
+
+
+
+
+
+
