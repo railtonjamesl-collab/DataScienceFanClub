@@ -13,7 +13,7 @@ For each model, we will train it on the training set and test it on the validati
 
 **Our motivation**
 
-In the context of finance, the result of this report is hugely beneficial in understanding how far out from a certain year can we forecast a company's bankruptcy status. This would be important for companies to monitor their own risk of bankruptcy. Investors can also find this useful in either identifying when to sell investments or to actually invest in failing companies - an area of finance referred to as distressed debt where failing companies are bought, improved and sold for a profit. 
+In the context of finance, the result of this report is hugely beneficial in understanding how far out from a certain year we forecast a company's bankruptcy status. This would be important for companies to monitor their own risk of bankruptcy. Investors can also find this useful in either identifying when to sell investments or to actually invest in failing companies - an area of finance referred to as distressed debt where failing companies are bought, improved and sold for a profit. 
 
 Furthermore, our results will help highlight which types of models are most suitable for time series and bankruptcy data. 
 
