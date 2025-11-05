@@ -3,7 +3,7 @@
 2. Billy Ryan
 3. Eloise Edwards
 4. Tomi
-5. Adlan
+5. Adlan Anazim
 
 # Preparation
 This project was build using R-Studio version 4.4.2 
