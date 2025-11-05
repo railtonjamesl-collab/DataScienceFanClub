@@ -7,7 +7,7 @@ date: "2025-10-25"
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
-In this section 
+
 ```{r}
 library(e1071)   
 library(pROC)    
@@ -19,6 +19,7 @@ library(PRROC)
 library(xgboost)
 ```
 
+First we initialise the data
 ```{r}
 df_train <- read.csv("C:\\Users\\railt\\DataScienceFanClub\\Data\\Val_traindata\\df_train_log_scaled_val.csv")
 df_test <- read.csv("C:\\Users\\railt\\DataScienceFanClub\\Data\\Val_traindata\\df_test_log_scaled_val.csv")
@@ -33,6 +34,7 @@ feature_lag3 = c(feature_lag2, 'X1_3yr','X2_3yr','X3_3yr','X4_3yr','X5_3yr','X6_
 
 ```
 
+Initialise the data
 ```{r}
 
 #no lag feature
@@ -84,7 +86,7 @@ y_train_sm_lag1 <- factor(new_df_lag1$status_label_1yr)
 y_train_sm_lag2 <- factor(new_df_lag2$status_label_1yr)
 y_train_sm_lag3 <- factor(new_df_lag3$status_label_1yr)
 ```
-It takes approximately ~15-30 minutes to run each session of SVM with SMOTE upsampling. This is a conseuqnce of radial kernel SVM has approximately O(n^2) ~ O(n^3). Therefore for 3 values of c, and 3 values of possible gamma, if we were to run all possible combination of features i.e. no lag, included 1 lag , included 2 lag, included 3 lag, it would take about 36 sessions to complete the hyper parameter tuning. This amount to about 9 - 18 hours. This highlight a major downside with support vector machine method. In theory, the computational speed can be significantly reduce if linear kernel was chosen. However, linear kernel is a degenerative case of the radial kernel, and in most case produce a less accurage results (source). PCA can also possible reduce the computational time here but the algorithm scale linear with feature so it shouldn't affect the performance much.
+It takes approximately ~10-20 minutes to run each session of SVM with SMOTE upsampling. This is a conseuqnce of radial kernel SVM has approximately O(n^2) ~ O(n^3). Therefore for 4 values of c, and 4 values of possible gamma, if we were to run all possible combination of features i.e. no lag, included 1 lag , included 2 lag, included 3 lag, it would take about 16 sessions to complete the hyper parameter tuning. This amount to about 4.5 - 9 hours. This highlight a major downside with support vector machine method. In theory, the computational speed can be significantly reduce if linear kernel was chosen. However, linear kernel is a degenerative case of the radial kernel, and in most case produce a less accurage results (source). PCA can also possible reduce the computational time here but the algorithm scale linear with feature so it shouldn't affect the performance much.
 
 
 In this section we will perform a parameter tuning. Given that it's extremely time consuming to perform tuning for a finer set of parameter. Here we simply perform a parameter tuning based on commonly use heuristic values. We first perform tuning for a model where the lag feature is not included
@@ -131,7 +133,7 @@ for (C in cost_values) {
   }
 }
 ```
-
+tuning for model with 1 lag
 ```{r}
 cost_values  <- c(0.1, 1, 10, 100)
 gamma_values <- c(2/ncol(x_train_sm_lag1), 1/ncol(x_train_sm_lag1), 0.1, 0.01)
@@ -174,7 +176,7 @@ for (C in cost_values) {
   }
 }
 ```
-
+model with 2yr lag
 ```{r}
 cost_values  <- c(0.1, 1, 10, 100)
 gamma_values <- c(2/ncol(x_train_sm_lag2), 1/ncol(x_train_sm_lag2), 0.1, 0.01)
@@ -218,7 +220,7 @@ for (C in cost_values) {
   }
 }
 ```
-
+model with 3yr lag
 ```{r}
 cost_values  <- c(0.1, 1, 10, 100)
 gamma_values <- c(2/ncol(x_train_sm_lag3), 1/ncol(x_train_sm_lag3), 0.1, 0.01)
@@ -262,7 +264,7 @@ for (C in cost_values) {
   }
 }
 ```
-
+Since it takes a great amount of time to train the model. In order to avoid having to retrain model everytime. I've decided to saved to result here and do an analysis in a seperated markdown file.
 ```{r}
 write.csv(results_nolag, "C:\\Users\\railt\\DataScienceFanClub\\James\\results_nolag.csv")
 write.csv(results_lag1, "C:\\Users\\railt\\DataScienceFanClub\\James\\results_lag1.csv")
@@ -271,41 +273,6 @@ write.csv(results_lag3, "C:\\Users\\railt\\DataScienceFanClub\\James\\results_la
 
 ```
 
-```{r}
-res_nolag <- results_nolag  %>% mutate(lag = "lag0 (no lag)")
-res_lag1  <- results_lag1   %>% mutate(lag = "lag1")
-res_lag2  <- results_lag2   %>% mutate(lag = "lag2")
-res_lag3  <- results_lag3   %>% mutate(lag = "lag3")
-
-all_res <- bind_rows(res_nolag, res_lag1, res_lag2, res_lag3) %>%
-  # order facets nicely
-  mutate(lag = factor(lag, levels = c("lag0 (no lag)", "lag1", "lag2", "lag3"))) %>%
-  # treat gamma as a label for plotting (keeps exact numeric values)
-  mutate(gamma_lab = as.factor(signif(gamma, 3)))
-
-
-```
-
-```{r}
-svm_rbf <- svm(
-      x = x_train_sm_nolag,
-      y = y_train_sm_nolag,
-      kernel = 'radial',
-      cost   = 1,
-      gamma  = 1/ncol(x_train_nolag),
-      probability = TRUE
-    )
-```
-```{r}
-pred_oc <- predict(svm_rbf, x_test_nolag, decision.values = TRUE, probability = TRUE)
-
-```
-
-```{r}
-probs <- attr(pred_oc, "probabilities")[, "alive"]
-
-roc(y_test, probs)
-```
 
 
 
