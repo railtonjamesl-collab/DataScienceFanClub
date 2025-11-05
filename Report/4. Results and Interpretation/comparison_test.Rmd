@@ -1,5 +1,5 @@
 ---
-title: "Untitled"
+title: "Results and Interpretations"
 output: html_document
 date: "2025-11-04"
 ---
@@ -7,7 +7,8 @@ date: "2025-11-04"
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
-```{r}
+
+```{r Libraries, include=FALSE}
 library(pROC)
 library(car)
 library(glmnet)
@@ -23,8 +24,13 @@ library(xgboost)
 library(tidyverse)
 library(randomForest)
 ```
-feature to include
-```{r}
+
+## Introduction
+
+In the methodology section, a variety of random forest, XGboost, K nearest neighbours, logistic regression and support vector machine models were developed and the "best" for each type was picked, based on the AUC value, to be a condidate for the final model in this project. In this section, these five models will be compared against eachother and the best overall model to predict whether a company will go bankrupt within the next year will be decided upon. Again, AUC is valued as the most important perormance metric in decided this however other performance metrics will also be discussed.
+
+
+```{r feature, include=FALSE}
 feature_lag0 = c('X1','X2','X3','X4','X5','X6','X7','X8','X9','X10','X11','X12','X13','X14','X15','X17','X18')
 feature_lag1 = c(feature_lag0, 'X1_1yr','X2_1yr','X3_1yr','X4_1yr','X5_1yr','X6_1yr','X7_1yr','X8_1yr','X9_1yr','X10_1yr','X11_1yr','X12_1yr','X13_1yr','X14_1yr','X15_1yr','X17_1yr','X18_1yr')
 feature_lag2 = c(feature_lag1, 'X1_2yr','X2_2yr','X3_2yr','X4_2yr','X5_2yr','X6_2yr','X7_2yr','X8_2yr','X9_2yr','X10_2yr','X11_2yr','X12_2yr','X13_2yr','X14_2yr','X15_2yr','X17_2yr','X18_2yr')
@@ -33,16 +39,16 @@ feature_lag3 = c(feature_lag2, 'X1_3yr','X2_3yr','X3_3yr','X4_3yr','X5_3yr','X6_
 
 ```
 
-```{r}
+```{r data, include=FALSE}
 set.seed(1234)
-df_train_noscale <- read.csv('C:\\Users\\railt\\DataScienceFanClub\\Data\\Final_traindata\\df_train_full.csv')
-df_train_log_scale <- read.csv('C:\\Users\\railt\\DataScienceFanClub\\Data\\Final_traindata\\df_train_log_scaled_full.csv')
-df_train_log_noscale <- read.csv('C:\\Users\\railt\\DataScienceFanClub\\Data\\Final_traindata\\df_train_log_full.csv')
+df_train_noscale <- read.csv('~/University of Bristol/Semester 1/Data Science Toolbox/Assessments/Assessment 1/DataScienceFanClub/Data/Final_traindata/df_train_full.csv')
+df_train_log_scale <- read.csv('~/University of Bristol/Semester 1/Data Science Toolbox/Assessments/Assessment 1/DataScienceFanClub/Data/Final_traindata/df_train_log_scaled_full.csv')
+df_train_log_noscale <- read.csv('~/University of Bristol/Semester 1/Data Science Toolbox/Assessments/Assessment 1/DataScienceFanClub/Data/Final_traindata/df_train_log_full.csv')
 
 
-df_test_noscale <- read.csv('C:\\Users\\railt\\DataScienceFanClub\\Data\\Final_traindata\\df_test.csv')
-df_test_log_scale <- read.csv('C:\\Users\\railt\\DataScienceFanClub\\Data\\Final_traindata\\df_test_log_scaled.csv')
-df_test_log_noscale <- read.csv('C:\\Users\\railt\\DataScienceFanClub\\Data\\Final_traindata\\df_test_log.csv')
+df_test_noscale <- read.csv('~/University of Bristol/Semester 1/Data Science Toolbox/Assessments/Assessment 1/DataScienceFanClub/Data/Final_traindata/df_test.csv')
+df_test_log_scale <- read.csv('~/University of Bristol/Semester 1/Data Science Toolbox/Assessments/Assessment 1/DataScienceFanClub/Data/Final_traindata/df_test_log_scaled.csv')
+df_test_log_noscale <- read.csv('~/University of Bristol/Semester 1/Data Science Toolbox/Assessments/Assessment 1/DataScienceFanClub/Data/Final_traindata/df_test_log.csv')
 
 #categorical feature for the train and test set
 y_train <- factor(df_train_noscale[,'status_label_1yr'], levels = c('alive','failed'))
@@ -58,7 +64,7 @@ y_train_sm <- factor(df_train_log_scale_sm$status_label_1yr)
 
 ```
 
-```{r}
+```{r set up, include=FALSE}
 #train/test set for SVM
 x_train_svm <- x_train_sm[, feature_lag0]
 x_test_svm <- df_test_log_scale[, feature_lag0]
@@ -93,11 +99,11 @@ x_train_rf <- df_train_noscale[,feature_lag3]
 x_test_rf <- df_test_noscale[,feature_lag3]
 
 train_rf <- data.frame(x_train_rf, y_train)
-test_rf <- data.frame(x_test_rf, y_test)
+test_rf <- df_test_noscale
 ```
 
-training
-```{r}
+
+```{r smv train, include=FALSE}
 set.seed(5555)
 #training svm model
 svm_model <- svm(
@@ -109,12 +115,15 @@ svm_model <- svm(
       probability = TRUE
     )
 
+```
+
+```{r knn train, include=FALSE}
+
 #training knn model
 
 ctr_2yr <- trainControl(method = "none",
                     sampling = "up")
-```
-```{r}
+
 knn_model <- train(
   x = x_train_knn, 
   y = y_train,
@@ -126,9 +135,13 @@ knn_model <- train(
 #training logistic regression model
 ```
 
-```{r}
+```{r regression train, include=FALSE}
+
 logit_model <- glm(y_train ~ ., data = train_logist, family = binomial)
 
+```
+
+```{r XGboost train, include=FALSE}
 #training for Xgboost
 n_pos <- sum(train_xgb[['y_train']] == 1)
 n_neg <- sum(train_xgb[['y_train']] == 0)
@@ -147,22 +160,19 @@ params <- list(
 )
 
 xgb_model <- xgb.train(params = params, data = dtrain, nrounds = 18)
-
-#training for random forest
-
-rf_model <- randomForest(
-    formula = as.formula(paste('y_train', "~ .")),
-    data = train_rf,
-    ntree = 500,
-    mtry = sqrt(ncol(train_rf)-1),
-    importance = TRUE,
-    strata = train_rf[['y_train']],
-    sampsize = rep(min(table(train_rf[['y_train']])), 2)
-  )
 ```
 
-testing on test data
-```{r}
+```{r rf load, include=FALSE}
+# load in random forest model 
+
+rf_model <- readRDS("~/University of Bristol/Semester 1/Data Science Toolbox/Assessments/Assessment 1/DataScienceFanClub/Report/3. Methodology/Random Forest/models/best_rf_model.rds")
+```
+
+## Testing the Models 
+
+The best 5 models have been loaded into this document and will now be used to make predictions on the final test set. This test set is completely unseen by any of the models previously so will provide a standard base-line for testing the performance of these models. Below is the code for this:
+
+```{r testing}
 #testing svm
 svm_pred <- predict(svm_model, x_test_svm, probability = TRUE)
 svm_class <- factor(svm_pred, levels = levels(y_test))
@@ -177,41 +187,24 @@ logit_class <- factor(ifelse(logit_pred > 0.5, "failed", "alive"), levels = c("a
 xgb_pred = predict(xgb_model, dtest)
 xgb_class <- factor(ifelse(xgb_pred > 0.5, "failed", "alive"), levels = c("alive","failed"))
 #testing random forest
-rf_pred = predict(rf_model, test_rf)
+rf_pred = predict(rf_model, df_test_noscale)
 rf_prob = predict(rf_model, test_rf, type = 'prob')
 ```
 
-performance comparison
-```{r}
-svm_conf = confusionMatrix(svm_pred, y_test, positive="failed")
-knn_conf = confusionMatrix(knn_pred, y_test, positive="failed")
-logit_conf = confusionMatrix(logit_class, y_test, positive="failed")
-xgb_conf = confusionMatrix(xgb_class, y_test, positive="failed")
-rf_conf = confusionMatrix(rf_pred, y_test, positive="failed")
+## ROC Curves and AUC
 
-print()
-```
+We will start by taking a look at the ROC curves. The ROC curve is a graphical representation of a classification model’s performance. It plots the True Positive Rate (sensitivity) against the False Positive Rate (1 - specificity), showing how well a model distinguishes between classes. The Area Under the Curve (AUC) provides a single numerical summary of this performance. A value of 1 indicates perfect classification, while 0.5 suggests no better than random guessing. In this project, AUC was the most important metric because it gives a balanced measure of model performance that is independent of class distribution.
 
-```{r}
+Below is the code that produces the ROC curves for each model.
+
+```{r roc curves, message=FALSE}
 svm_prob <- attr(svm_pred, "probabilities")[,'failed']
 roc_svm <- roc(y_test, svm_prob)
 roc_knn <- roc(y_test, knn_prob[,'failed'])
 roc_logit <- roc(test_logist$y_test, logit_pred)
 roc_xgb <- roc(y_test, xgb_pred)
-roc_rf <- roc(test_rf$y_test, rf_prob[,'alive']) #the labeled for failed and alive switch for rf_model
-```
-```{r}
-auc_values <- c(
-  Logistic = auc(roc_logit),
-  SVM = auc(roc_svm),
-  KNN = auc(roc_knn),
-  XGBoost = auc(roc_xgb),
-  RandomForest = auc(roc_rf)
-)
+roc_rf <- roc(test_rf$status_label_1yr, rf_prob[,'alive']) 
 
-print(round(auc_values, 4))
-```
-```{r}
 roc_list <- list(Logistic=roc_logit, SVM=roc_svm, KNN=roc_knn, XGBoost=roc_xgb, RandomForest=roc_rf)
 roc_df <- do.call(rbind, lapply(names(roc_list), function(nm) {
   data.frame(
@@ -226,32 +219,232 @@ ggplot(roc_df, aes(x = FPR, y = TPR, color = Model)) +
   geom_abline(slope = 1, intercept = 0, linetype = 3) +
   labs(title = "ROC Curve Comparison", x = "False Positive Rate", y = "True Positive Rate") +
   theme_minimal(base_size = 13)
-```
+``` 
 
-recall comparison
-```{r}
-svm_recall = svm_comf$byClass['Recall']
-knn_recall = knn_comf$byClass['Recall']
-logit_recall = logit_comf$byClass['Recall']
-xgboost_recall = xgboost_comf$byClass['Recall']
-rf_recall = rf_comf$byClass['Recall']
+Below is the code that retrieves the area under the curve (AUC) for these.
 
-#here's the plot 
-
-recall_df <- data.frame(
-  Model = c("SVM", "KNN", "Logistic", "XGBoost", "Random Forest"),
-  Recall = c(svm_recall, knn_recall, logit_recall, xgboost_recall, rf_recall)
+```{r auc vals}
+auc_values <- c(
+  Logistic = auc(roc_logit),
+  SVM = auc(roc_svm),
+  KNN = auc(roc_knn),
+  XGBoost = auc(roc_xgb),
+  RandomForest = auc(roc_rf)
 )
 
-ggplot(recall_df, aes(x = reorder(Model, Recall), y = Recall, fill = Model)) +
-  geom_col(show.legend = FALSE) +
-  geom_text(aes(label = round(Recall, 2)), vjust = -0.3, size = 4) +
-  labs(title = "Recall by Model", x = "", y = "Recall") +
-  ylim(0, 1) +
-  theme_minimal(base_size = 13)
+print(round(auc_values, 4))
 ```
 
-```{r}
+From these AUC values, it is clear that all models except the k nearest neighbour model are performing well as they have a high AUC. The random forest model out performs all others with an AUC very close to 1. The difference between the three other models is marginal and therefore does not mean that one model is definitively better than the others. When this is the case, it is best to evaluate other performance metrics before making a decision. However, the models ranked from best to worst for AUC are.
+1. Random Forest
+2. Logistic Regression  
+3. Support Vector Machine
+4. XGBoost 
+5. K Nearest Neighbours
+
+## Confusion Matrices
+
+We can also produce the confusion matrices for all of the models.
+
+```{r conf matrix}
+svm_conf = confusionMatrix(svm_pred, y_test, positive="failed")
+knn_conf = confusionMatrix(knn_pred, y_test, positive="failed")
+logit_conf = confusionMatrix(logit_class, y_test, positive="failed")
+xgb_conf = confusionMatrix(xgb_class, y_test, positive="failed")
+rf_conf = confusionMatrix(rf_pred, y_test, positive="failed")
+
+```
+
+These are printed below.
+
+```{r conf mat printed}
+
+message("Confusion Matrix for Support Vector Machine model: ")
+print(svm_conf$table)
+
+message("Confusion Matrix for K Nearest Neighbours model: ")
+print(knn_conf$table)
+
+message("Confusion Matrix for Logistic Regression model:: ")
+print(logit_conf$table)
+
+message("Confusion Matrix for XGBoost model: ")
+print(xgb_conf$table)
+
+message("Confusion Matrix for Random Forest model:: ")
+print(rf_conf$table)
 
 
 ```
+Confusion Matrices can show lots of insight and many performance metrics can be calculated from them. Many of these metrics will be discussed in the next section, however they also quantify false predictions in nominal terms and show where they lie i.e. whether there are more false positive or false negative. From the above confusions matrices, we can see that the support vector machine, k nearest neighbour models, XGboost and random forest all have far more false negatives than false positives. However, the logistic regression model has predicted far more false negatives than false positives. 
+
+There are many implications that can be made from this depending on the circumstances in which the model is used. For the models that have more false negatives, this means that the model predicts these companies will go bankrupt when they will not. If these models were used by banks or loan companies this may lead to reduced ability to borrow funds or less desirable loan terms. When used by a the company itself, this may initiate cost cutbacks such as laying off workers or reducing the quality of products or services. On the other hand, for logistic model which has more false positives than false negatives, the opposite is true. 
+
+Both false negatives and false positives predicted within these models could be detrimental to these companies if the models were used in industry. Given that this is not the case, it is not possible to make a decision on whether having more false negatives or false positives makes a model "better". However, it is worth noting that the logistic regression and the random forest models have significantly fewer false predictions than all other models.
+
+## F1 Score
+
+The F1 score is the harmonic mean of precision and recall (sensitivity), providing a balanced measure between false positives and false negatives. For this project, it gives a single summary of how effectively the model predicts bankruptcies while managing misclassification errors.
+
+```{r f1}
+
+svm_F1  = svm_conf$byClass['F1']
+knn_F1  = knn_conf$byClass['F1']
+logit_F1  = logit_conf$byClass['F1']
+xgb_F1  = xgb_conf$byClass['F1']
+rf_F1  = rf_conf$byClass['F1']
+
+f1 <- c(
+  SVM = svm_F1 ,
+  KNN = knn_F1 ,
+  Logistic = logit_F1 ,
+  XGBoost = xgb_F1 ,
+  RF = rf_F1 
+  )
+
+print(f1)
+```
+
+The models ranked from best to worst for specificity are.
+1. Random Forest   
+2. Logistic Regression
+3. Support Vector Machine
+4. XGBoost 
+5. K Nearest Neighbours
+
+It is worth noting all models except for the random forest did not perform well for this metric.
+
+## Sensitivity
+
+Sensitivity measures the proportion of actual positives that are correctly identified by the model. Here, it shows how well the model identifies companies that truly did not go bankrupt.
+
+```{r sens}
+
+svm_Sensitivity = svm_conf$byClass['Sensitivity']
+knn_Sensitivity = knn_conf$byClass['Sensitivity']
+logit_Sensitivity = logit_conf$byClass['Sensitivity']
+xgb_Sensitivity = xgb_conf$byClass['Sensitivity']
+rf_Sensitivity = rf_conf$byClass['Sensitivity']
+
+sens <- c(
+  SVM = svm_Sensitivity,
+  KNN = knn_Sensitivity,
+  Logistic = logit_Sensitivity,
+  XGBoost = xgb_Sensitivity,
+  RF = rf_Sensitivity
+  )
+
+print(sens)
+```
+
+The models ranked from best to worst for sensitivity are.
+1. Random Forest
+2. XGBoost 
+3. Support Vector Machine
+4. K Nearest Neighbours 
+5. Logistic Regression
+
+It worth noting that the sensitivity metric for the logistic model is extremely low.
+
+## Specificity 
+
+Specificity measures the proportion of actual negatives correctly classified by the model. In this context, it reflects how accurately the model recognises companies that remained solvent.
+
+```{r spec}
+
+svm_Specificity  = svm_conf$byClass['Specificity']
+knn_Specificity  = knn_conf$byClass['Specificity']
+logit_Specificity  = logit_conf$byClass['Specificity']
+xgb_Specificity  = xgb_conf$byClass['Specificity']
+rf_Specificity  = rf_conf$byClass['Specificity']
+
+spec <- c(
+  SVM = svm_Specificity ,
+  KNN = knn_Specificity ,
+  Logistic = logit_Specificity ,
+  XGBoost = xgb_Specificity ,
+  RF = rf_Specificity 
+  )
+
+print(spec)
+```
+
+The models ranked from best to worst for specificity are.
+1. Logistic Regression 
+2. Random Forest  
+3. Support Vector Machine
+4. XGBoost 
+5. K Nearest Neighbours
+
+## Precision 
+
+Precision indicates the proportion of predicted positive cases that are actually correct. For this model, it shows how reliable the bankruptcy predictions are — the proportion of predicted bankruptcies that were genuine.
+
+
+```{r prec}
+
+svm_Precision  = svm_conf$byClass['Precision']
+knn_Precision  = knn_conf$byClass['Precision']
+logit_Precision  = logit_conf$byClass['Precision']
+xgb_Precision  = xgb_conf$byClass['Precision']
+rf_Precision  = rf_conf$byClass['Precision']
+
+prec <- c(
+  SVM = svm_Precision ,
+  KNN = knn_Precision ,
+  Logistic = logit_Precision ,
+  XGBoost = xgb_Precision ,
+  RF = rf_Precision 
+  )
+
+print(prec)
+```
+
+The models ranked from best to worst for specificity are.
+1. Logistic Regression 
+2. Random Forest  
+3. Support Vector Machine
+4. XGBoost 
+5. K Nearest Neighbours
+
+It is worth noting that the support vector machine, k nearest neighbours and XGBoost all  have a very low precision score.
+
+## Balanced Accurancy 
+
+Balanced accuracy is the average of sensitivity and specificity, making it a fairer measure for datasets with unequal class sizes. Since most companies in the dataset were not bankrupt, balanced accuracy provides a more representative measure of the model’s true performance than raw accuracy.
+
+```{r acc}
+
+svm_bal_acc  = svm_conf$byClass['Balanced Accuracy']
+knn_bal_acc  = knn_conf$byClass['Balanced Accuracy']
+logit_bal_acc  = logit_conf$byClass['Balanced Accuracy']
+xgb_bal_acc  = xgb_conf$byClass['Balanced Accuracy']
+rf_bal_acc  = rf_conf$byClass['Balanced Accuracy']
+
+bal_acc <- c(
+  SVM = svm_bal_acc ,
+  KNN = knn_bal_acc ,
+  Logistic = logit_bal_acc ,
+  XGBoost = xgb_bal_acc ,
+  RF = rf_bal_acc 
+  )
+
+print(bal_acc)
+```
+
+The models ranked from best to worst for specificity are.
+1. Random Forest   
+2. XGBoost 
+3. Support Vector Machine
+4. K Nearest Neighbours
+5. Logistic Regression
+
+## Conclusion
+
+From the discussed performance metrics, it is clear to see that the random forest model out performed all other models in almost all perofrmance metrics and the K nearest neighbours model performed the worst in almost all metrics. however the other three models were closer in performance. From looking at the previous metrics and how the models have ranked, it can be seen that the logistic regression model outperformed the XGboost and the support vector machine models in four out of the six performance metrics. In addition to this, it also had fewer false predictions. The XGboost model and the support vector machine models both out performed each on three of the six metrics and both had a similar number of false positives in their confusion matrices. Given that we have highlighted AUC as the most important metric, it would be fair to say that support vector machine model is "better" of the two as it had a higher AUC. Therefore, the models ranked from best to worst are:
+1. Random Forest
+2. Logistic Regression
+3. Support Vector Machine
+4. XGBoost
+5. K Nearest Neighbours
+
