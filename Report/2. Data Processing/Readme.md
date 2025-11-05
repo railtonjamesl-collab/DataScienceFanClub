@@ -4,8 +4,8 @@
 
 Originally, we were interested in credit loan data. From kaggle to machine learning papers, we identified two issues:
 
-1. Given credit loan data involves highly personal information, datasets were often synthetic. This would limit the signifiance of our results given the lack of variation in the data.
-2. Alternatively, datasets were highly convoluted - including over 100 variables without a clear dictionary
+1. Given credit loan data involves highly personal information, datasets were often synthetic. This would limit the significance of our results given the lack of variation in the data.
+2. Alternatively, datasets were highly convoluted - including over 100 variables without a clear dictionary and explanation of what each variable meant
 
 Our chosen bankruptcy dataset allowed us to explore a similar question without these issues. Tackling the above issues is possible but would require a significant amount of time, computational effort and access to sensitive information which stretches beyond the scope of this specific project and the resources available.
 
@@ -29,11 +29,11 @@ This would improve the quality of our predictions by removing companies that had
 
 3. Introduce lag variables
 
-Lag variables gives our models information from previous to train on as we investigate the impact of more information on our model's predictive power.
+Lag variables gives our models information from previous years to train on as we investigate the impact of more information on our model's predictive power.
 
 4. Remove NAs from the dataset
 
-By introducing lag variables, we introduce NAs as a company e.g. at the beginning of the dataset doesn't have previous years to refer to. Hence, we remove accordingly.
+By introducing lag variables, we introduce NAs because a company e.g. at the beginning of the dataset doesn't have previous years to refer to. Hence, we remove accordingly.
 
 
 **EDA and splitting the data in to our training, validation and test splits** 
