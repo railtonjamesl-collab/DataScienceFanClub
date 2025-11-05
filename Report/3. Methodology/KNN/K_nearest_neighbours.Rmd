@@ -39,8 +39,8 @@ set.seed(123)
 
 # import data sets to train with
 
-val_train <- read.csv("~/University of Bristol/Semester 1/Data Science Toolbox/Assessments/Assessment 1/DataScienceFanClub/Data/Val_traindata/df_train_log_scaled_val.csv")
-val_test <- read.csv("~/University of Bristol/Semester 1/Data Science Toolbox/Assessments/Assessment 1/DataScienceFanClub/Data/Val_traindata/df_test_log_scaled_val.csv")
+val_train <- read.csv("https://raw.githubusercontent.com/railtonjamesl-collab/DataScienceFanClub/refs/heads/main/Data/Val_traindata/df_train_log_scaled_val.csv")
+val_test <- read.csv("https://raw.githubusercontent.com/railtonjamesl-collab/DataScienceFanClub/refs/heads/main/Data/Val_traindata/df_test_log_scaled_val.csv")
 
 # make sure target vars are factors
 
