@@ -18,7 +18,7 @@ library(pROC)
 #-------------------------------------------
 # Function: Train RF on train + validation
 #-------------------------------------------
-train_rf_cumulative <- function(train_file, valid_file, lags_to_include, seed=123) {
+train_rf_cumulative <- function(train_file, valid_file, lags_to_include, seed=5555) {
   
   # Load data
   train_data <- read.csv(train_file)
@@ -220,6 +220,7 @@ legend("bottomright",
 
 
 ```
+
 
 
 
