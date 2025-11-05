@@ -183,13 +183,11 @@ rf_prob = predict(rf_model, test_rf, type = 'prob')
 
 performance comparison
 ```{r}
-svm_conf = confusionMatrix(svm_pred, y_test, positive="failed")
-knn_conf = confusionMatrix(knn_pred, y_test, positive="failed")
-logit_conf = confusionMatrix(logit_class, y_test, positive="failed")
-xgb_conf = confusionMatrix(xgb_class, y_test, positive="failed")
-rf_conf = confusionMatrix(rf_pred, y_test, positive="failed")
-
-print()
+cat('confusion matrix is given by',(confusionMatrix(svm_pred, y_test, positive="failed")))
+(confusionMatrix(knn_pred, y_test, positive="failed"))
+(confusionMatrix(logit_class, y_test, positive="failed"))
+(confusionMatrix(xgb_class, y_test, positive="failed"))
+(confusionMatrix(rf_pred, y_test, positive="failed"))
 ```
 
 ```{r}
@@ -228,27 +226,9 @@ ggplot(roc_df, aes(x = FPR, y = TPR, color = Model)) +
   theme_minimal(base_size = 13)
 ```
 
-recall comparison
 ```{r}
-svm_recall = svm_comf$byClass['Recall']
-knn_recall = knn_comf$byClass['Recall']
-logit_recall = logit_comf$byClass['Recall']
-xgboost_recall = xgboost_comf$byClass['Recall']
-rf_recall = rf_comf$byClass['Recall']
 
-#here's the plot 
 
-recall_df <- data.frame(
-  Model = c("SVM", "KNN", "Logistic", "XGBoost", "Random Forest"),
-  Recall = c(svm_recall, knn_recall, logit_recall, xgboost_recall, rf_recall)
-)
-
-ggplot(recall_df, aes(x = reorder(Model, Recall), y = Recall, fill = Model)) +
-  geom_col(show.legend = FALSE) +
-  geom_text(aes(label = round(Recall, 2)), vjust = -0.3, size = 4) +
-  labs(title = "Recall by Model", x = "", y = "Recall") +
-  ylim(0, 1) +
-  theme_minimal(base_size = 13)
 ```
 
 ```{r}

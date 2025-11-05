@@ -7,7 +7,7 @@ date: "2025-11-03"
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
-
+In this section we examine  the result of the trained model. 
 ```{r}
 library(e1071)   
 library(pROC)    
@@ -19,7 +19,7 @@ library(PRROC)
 library(xgboost)
 library(tidyr)
 ```
-
+Here we load up the results and mutate them into one data frame
 ```{r}
 
 results_nolag <- read.csv("C:\\Users\\railt\\DataScienceFanClub\\James\\results_nolag.csv")
@@ -40,7 +40,7 @@ all_res <- bind_rows(res_nolag, res_lag1, res_lag2, res_lag3) %>%
 
 ```
 
-
+Here's the heatmap of the AUC values of the resutls. We can see that the model with the best performing AUC is given by the no lag feature, c = 0.1, and $\gamma = 0.01$ .
 ```{r}
 ggplot(all_res, aes(x = factor(cost), y = gamma_lab, fill = AUC)) +
   geom_tile(color = "black") +
@@ -57,7 +57,7 @@ ggplot(all_res, aes(x = factor(cost), y = gamma_lab, fill = AUC)) +
 
 
 ```
-
+Here's the graph from of all recorded metric parameters. Here we observed that model with higher accuracy perform worst in AUC since it simply predict everything as alive. The higher accuracy is simply a by product of a heavility imbalanced data. Importantly, in the context of company bankruptcies, a false positive simply implies that the investor missed out on potentially healthy company while false negative can be detrimental in the potential lost in investment. Therefore it is crucial that the best performing model also has high sensitivity. As seen from the graph we observed that the no lag features model with $c=0.1$ and $\gamma=0.01$ satisfied this criteria. Therefore this model will be used in the comparison test in the next section.
 ```{r}
 all_res_long <- all_res %>%
   pivot_longer(
