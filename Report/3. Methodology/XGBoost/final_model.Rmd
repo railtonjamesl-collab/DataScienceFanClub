@@ -48,7 +48,7 @@ colsample_bytree <- 0.5001273
 iter <- 18
 ```
 
-Modelling with xgboost using the "best" parameters found from rolling windows cross-validation
+Modelling with xgboost using the "best" parameters found from expanding windows cross-validation
 ```{r}
 set.seed(347)
 
