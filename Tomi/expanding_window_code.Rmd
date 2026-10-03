@@ -1,5 +1,5 @@
 ---
-title: "Rolling Window CV"
+title: "Expanding Window CV"
 author: Tomi
 output: html_document
 date: "2025-10-31"
@@ -17,8 +17,8 @@ val_years <- c((first_year+1):last_year)
 print(val_years)
 ```
 
-```{r Rolling Window Algo}
-rolling_window_v1 <- function(data, features){
+```{r Expanding Window Algo}
+expanding_window_v1 <- function(data, features){
   auc_scores <- data.frame()
   aucs <- c()
   
