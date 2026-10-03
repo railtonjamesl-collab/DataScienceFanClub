@@ -1,5 +1,5 @@
 ---
-title: "Rolling Window CV"
+title: "Expanding Window CV"
 author: Tomi
 output: html_document
 date: "2025-11-02"
@@ -37,7 +37,7 @@ target <- "status_label_1yr"
 first_year <- 2002
 last_year <- 2013
 
-# for rolling window CV
+# for expanding window CV
 
 val_years <- c((first_year+1):last_year)
 print(val_years)
@@ -61,7 +61,7 @@ random_params <- function() {
 
 Defining the functions for training/evaluation
 ```{r cross-validation}
-xgboost_rolling_cv <- function(features, parameters) {
+xgboost_expanding_cv <- function(features, parameters) {
   # Converting target variable to numeric
   df[[target]] <- as.numeric(df[[target]] == "failed")
   
@@ -175,10 +175,10 @@ results_3yr <- list()
 for (i in 1:50) {
   parameters <- random_params()
   
-  result0 <- xgboost_rolling_cv(base_features, parameters)
-  result1 <- xgboost_rolling_cv(lag_1yr_feats, parameters)
-  result2 <- xgboost_rolling_cv(lag_2yr_feats, parameters)
-  result3 <- xgboost_rolling_cv(lag_3yr_feats, parameters)
+  result0 <- xgboost_expanding_cv(base_features, parameters)
+  result1 <- xgboost_expanding_cv(lag_1yr_feats, parameters)
+  result2 <- xgboost_expanding_cv(lag_2yr_feats, parameters)
+  result3 <- xgboost_expanding_cv(lag_3yr_feats, parameters)
   
   results_base[[i]] <- list(parameters = parameters, mean_auc = result0$mean_auc, sd_auc = result0$sd_auc, folds = result0$fold_aucs)
   
